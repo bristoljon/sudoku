@@ -44,14 +44,25 @@
 		padding: 5px;
 		background-color: white;
 	}
+
+	#tooltip {
+		position: absolute;
+		border: 1px solid black;
+		padding: 5px;
+		background-color: white;
+	}
     
     </style>
 
 <body>
     <h1>Sudoku Solver</h1>
-	<div id="result"></div>
 	<input type="button" id="clear" value="Clear"/>
-	<input type="button" id="solve" value="Solve"/>
+	<input type="button" class="solve" value="Simple"/>
+	<input type="button" class="solve" value="Box Search"/>
+	<input type="button" class="solve" value="Column Search"/>
+	<input type="button" class="solve" value="Row Search"/>
+	<input type="button" class="solve" value="Solve"/>
+	<div id="tooltip"></div>
 	<div class="container">
 		<div class='box'>
 			<input type='text' class="cell" value="9" maxlength="1"/>

@@ -24,23 +24,68 @@ var sudoku = (function() {
 		sudoku.getInput();
 	});
 	
-	$('#solve').click(function () {
-		var iterations = 0;
-		console.time('Solved');
+	$('.solve').click(function (e) {
 		sudoku.getInput();
-		while (sudoku.getBlanks().length) {
-			sudoku.update();
-			sudoku.check();
-			sudoku.solve('box');
-			sudoku.solve('x');
-			sudoku.solve('y');
-			if (++iterations > 19) break;
+		switch (e.target.value) {
+			case 'Simple':
+				sudoku.update();
+				break;
+			case 'Box Search':
+				sudoku.solve('box');
+				break;
+			case 'Column Search':
+				sudoku.solve('y');
+				break;
+			case 'Row Search':
+				sudoku.solve('x');
+				break;
+			case 'Solve':
+				var iterations = 0;
+				console.time('Solved');
+
+				while (sudoku.getBlanks().length) {
+					sudoku.update();
+					sudoku.solve('box');
+					sudoku.solve('x');
+					sudoku.solve('y');
+					if (++iterations > 19) break;
+				}
+				console.timeEnd('Solved');
+				console.log(iterations + ' iterations');
+				if (iterations === 20) {
+					console.log('Solve failed')
+				}
+				break;
+			default:
+				console.log('No handler found')
 		}
-		console.timeEnd('Solved');
-		console.log(iterations + ' iterations');
-		if (iterations === 20) {
-			console.log('Solve failed')
+	});
+
+	$('.solve').hover(function (e) {
+		var info = '';
+		switch (e.target.value) {
+			case 'Simple':
+				info = "For every blank, create a list of all the digits in it's row, column and box. If it can only be one digit, enters it.";
+				break;
+			case 'Box Search':
+				info = "For each box, create list of cells where each digit could go. If only one place, enter it.";
+				break;
+			case 'Column Search':
+				info = "For each column, create list of cells where each digit could go. If only one place, enter it.";
+				break;
+			case 'Row Search':
+				info = "For each row, create list of cells where each digit could go. If only one place, enter it.";
+				break;
+			case 'Solve':
+				info = "Simple, Box, Column and Row search until no blanks remain or maximum iterations reached";
+				break;
+			default:
+				console.log('No handler found')
+				break;
 		}
+		$('#tooltip')
+			.text(info)
+			.toggle();
 	});
 	
 	// Cell constructor that adds unique ID to each one
@@ -128,6 +173,7 @@ var sudoku = (function() {
 		// Generates an array of cells and adds box reference to each one
 		init: function () {
 			$('#popover').hide();
+			$('#tooltip').hide();
 			this.cells = [];
 			for (var x=0; x<9; x++ ) {
 				for (var y=0; y<9; y++ ) {
@@ -227,18 +273,14 @@ var sudoku = (function() {
 					if (!blank.not.has(digit)) {
 						blank.may.push(digit)
 					}
-				})
-			});
-		},
-		check: function () {
-			var blanks = this.getBlanks();
-			blanks.forEach(function (blank) {
+				});
+
 				if (blank.may.length === 1) {
 					// If blank has 8 not's set the remaining one as its value
 					blank.value = blank.may[0];
 					blank.el.value = blank.may[0];
 				}
-			})
+			});
 		},
 		
 		solve: function (group) {
