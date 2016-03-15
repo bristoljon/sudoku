@@ -1,214 +1,277 @@
-// Polyfill function to check array for item
-Array.prototype.has = function (item) {
+var sudoku = (function() {
 
-	// Allows checking array of cells for value
-	if (typeof this[0] === 'object') {
-		for (var i = 0; i < this.length; i++) {
-			if (this[i].value === item) return true
-		}
-	}
-	else {
-		for (var j = 0; j < this.length; j++) {
-			if (this[j] === item) return true
-		}
-	}
-
-	return false
-};
-
-$('#clear').click(function () {
-	sudoku.$cells.val('');
-	sudoku.init()
-});
-
-$('#solve').click(function () {
-	var iterations = 0;
-	sudoku.getInput();
-	while (sudoku.getBlanks().length && iterations < 20) {
-		sudoku.search();
-		sudoku.check();
-		sudoku.solve('box');
-		sudoku.solve('x');
-		sudoku.solve('y');
-		iterations++
-	}
-	if (iterations === 20) {
-		console.log('Solve failed')
-	}
-});
-
-var sudoku = {
-	cells: [],
-	DIGITS: ['1','2','3','4','5','6','7','8','9'],
-	$cells: $('.cell'),
-	// Generates an array of cells and adds box reference to each one
-	init: function () {
-		this.cells = [];
-		for (var x=0; x<9; x++ ) {
-			for (var y=0; y<9; y++ ) {
-				var cell = new Cell(x,y);
-				if (x < 3) {
-					if (y < 3) cell.box = 0;
-					else if (y < 6) cell.box = 1;
-					else cell.box = 2;
-				}
-				else if (x < 6) {
-					if (y < 3) cell.box = 3;
-					else if (y < 6) cell.box = 4;
-					else cell.box = 5;
-				}
-				else {
-					if (y < 3) cell.box = 6;
-					else if (y < 6) cell.box = 7;
-					else cell.box = 8;
-				}
-				cell.parent = this;
-				this.cells.push(cell);
+	const DIGITS = ['1','2','3','4','5','6','7','8','9'];
+	
+	// Polyfill function to check array for item
+	Array.prototype.has = function (item) {
+		// Allows checking array of cells for value
+		if (typeof this[0] === 'object') {
+			for (var i = 0; i < this.length; i++) {
+				if (this[i].value === item) return true
 			}
 		}
-		// Add a ref to the dom element for each cell
-		var cells = this.cells;
-		for (var i = 0; i < cells.length; i++) {
-			cells[i].el = this.$cells[i];
+		else {
+			for (var j = 0; j < this.length; j++) {
+				if (this[j] === item) return true
+			}
 		}
-	},
+		return false
+	};
+	
+	$('#clear').click(function () {
+		sudoku.$cells.val('');
+		sudoku.init();
+		sudoku.getInput();
+	});
+	
+	$('#solve').click(function () {
+		var iterations = 0;
+		console.time('Solved');
+		sudoku.getInput();
+		while (sudoku.getBlanks().length) {
+			sudoku.update();
+			sudoku.check();
+			sudoku.solve('box');
+			sudoku.solve('x');
+			sudoku.solve('y');
+			if (++iterations > 19) break;
+		}
+		console.timeEnd('Solved');
+		console.log(iterations + ' iterations');
+		if (iterations === 20) {
+			console.log('Solve failed')
+		}
+	});
+	
+	// Cell constructor that adds unique ID to each one
+	var Cell = (function() {
+		var counter = 0;
+		return function (x,y) {
+			this.x = x;
+			this.y = y;
+			this.id = counter++;
+			this.not = [];
+			this.may = [];
+			return this;
+		};
+	})();
 
-	// Updates the cells array with any numbers entered into the ui
-	getInput: function () {
-		var cells = this.cells;
+	// Method to grab the remaining cells in a given row, column or box
+	Cell.prototype.getRemaining = function (prop) {
+		var ar = [],
+			cells = this.parent.cells;
+
 		for (var i=0; i<cells.length; i++) {
-			cells[i].value = cells[i].el.value;
-		}
-	},
-
-	getBlanks: function (selection) {
-		var cells = selection || this.cells,
-			ar = [];
-		for (var i = 0; i<cells.length; i++) {
-			if (cells[i].value === '') {
-				ar.push(cells[i])
-			}
-		}
-		return ar
-	},
-
-	getKnowns:  function (selection) {
-		var cells = selection || this.cells,
-			ar = [];
-		for (var i = 0; i<cells.length; i++) {
-			if (cells[i].value !== '') {
-				ar.push(cells[i])
-			}
-		}
-		return ar
-	},
-
-	get: function (group, id) {
-		var cells = this.cells,
-			ar = [];
-		for (var i=0; i < cells.length; i++) {
-			if (cells[i][group] === id) {
+			if (cells[i][prop] === this[prop] && cells[i].id !== this.id) {
 				ar.push(cells[i]);
 			}
 		}
 		return ar;
-	}
-};
-
-// Cell constructor that adds unique ID to each instance
-var Cell = (function() {
-	var counter = 0;
-	return function (x,y) {
-		this.x = x;
-		this.y = y;
-		this.id = counter++;
-		this.not = [];
-		this.may = [];
-		return this;
 	};
-})();
 
-// Method to grab the remaining cells in a given row, column or box
-Cell.prototype.getRemaining = function (prop) {
-	var ar = [],
-		cells = this.parent.cells;
-
-	for (var i=0; i<cells.length; i++) {
-		if (cells[i][prop] === this[prop] && cells[i].id !== this.id) {
-			ar.push(cells[i]);
+	// Arrow key event handler
+	Cell.prototype.navigate = function (event) {
+		switch (event.keyCode) {
+			case 37: // Left
+				console.log('left');
+				if (this.y > 0) {
+					$(sudoku.getCell(this.x, this.y - 1).el).focus()
+				}
+				break;
+			case 38:
+				console.log('up');
+				if (this.x > 0) {
+					$(sudoku.getCell(this.x - 1, this.y).el).focus()
+				}
+				break;
+			case 39: // Left
+				console.log('right');
+				if (this.y < 8) {
+					$(sudoku.getCell(this.x, this.y + 1).el).focus()
+				}
+				break;
+			case 40: // Left
+				console.log('down');
+				if (this.x < 8) {
+					$(sudoku.getCell(this.x + 1, this.y).el).focus()
+				}
+				break;
+			default:
+				var key = String.fromCharCode(event.keyCode);
+				if (DIGITS.has(key) && !this.not.has(key)) {
+					this.el.value = key;
+					this.value = key;
+					sudoku.update();
+				}
+				else {
+					event.preventDefault()
+				}
 		}
-	}
-	return ar;
-};
+	};
 
-// Search every blank cells' row, column and box and add any values found to 'not' list
-// Then invert that by adding any missing digits to the 'may' list
-sudoku.search = function () {
-	var blanks = this.getBlanks(),
-		digits = this.DIGITS;
-
-	blanks.forEach(function(blank) {
-		var cells = blank.getRemaining('x')
-				.concat(blank.getRemaining('y'))
-				.concat(blank.getRemaining('box'));
-
-		// Add any values in the cells box, row or column to not array
-		cells.forEach(function(cell) {
-			cell = cell.value;
-			// If cell has a value that isn't already in the blank's not list, add it
-			if (cell !== '' && !blank.not.has(cell)) {
-				blank.not.push(cell);
-			}
-		});
-
-		// Add any digits not in the 'not' list to the 'may' list
-		digits.forEach(function (digit) {
-			if (!blank.not.has(digit)) {
-				blank.may.push(digit)
-			}
-		})
-	});
-};
-
-sudoku.check = function () {
-	var blanks = this.getBlanks();
-	blanks.forEach(function (blank) {
-		if (blank.may.length === 1) {
-			// If blank has 8 not's set the remaining one as its value
-			blank.value = blank.may[0];
-			blank.el.value = blank.may[0];
+	Cell.prototype.showPopover = function (e) {
+		if (!this.value) {
+			$('#popover')
+			.html('Not: ' + this.not.sort() + '<br/> Maybe: ' + this.may.sort())
+			.css({'top': e.pageY, 'left': e.pageX})
+			.show();
 		}
-	})
-};
+	};
 
-sudoku.solve = function (group) {
-	var self = this,
-		groups = [],
-		digits = this.DIGITS;
-	for (var i = 0; i < 10; i++) {
-		groups.push(this.get(group, i))
-	}
-	groups.forEach(function (group) {
-		digits.forEach(function (digit) {
-			if (!group.has(digit)) {
-				var blanks = self.getBlanks(group),
-					maybes = [];
-				blanks.forEach(function(blank) {
-					if (!blank.not.has(digit)) {
-						maybes.push(blank)
+	Cell.prototype.hidePopover = function () {
+		$('#popover').hide();
+	};
+	
+	return {
+		cells: [],
+		$cells: $('.cell'),
+		// Generates an array of cells and adds box reference to each one
+		init: function () {
+			$('#popover').hide();
+			this.cells = [];
+			for (var x=0; x<9; x++ ) {
+				for (var y=0; y<9; y++ ) {
+					var cell = new Cell(x,y);
+					if (x < 3) {
+						if (y < 3) cell.box = 0;
+						else if (y < 6) cell.box = 1;
+						else cell.box = 2;
 					}
-				});
-				if (maybes.length === 1) {
-					maybes[0].value = digit;
-					maybes[0].el.value = digit;
-					maybes[0].may = [];
+					else if (x < 6) {
+						if (y < 3) cell.box = 3;
+						else if (y < 6) cell.box = 4;
+						else cell.box = 5;
+					}
+					else {
+						if (y < 3) cell.box = 6;
+						else if (y < 6) cell.box = 7;
+						else cell.box = 8;
+					}
+					cell.parent = this;
+					this.cells.push(cell);
 				}
 			}
-		})
-	})
-};
+			// Add a ref to the dom element for each cell and add listeners
+			var cells = this.cells;
+			for (var i = 0; i < cells.length; i++) {
+				cells[i].el = this.$cells[i];
+				cells[i].el.addEventListener('keydown', cells[i].navigate.bind(cells[i]));
+				cells[i].el.addEventListener('mouseover', cells[i].showPopover.bind(cells[i]));
+				cells[i].el.addEventListener('mouseout', cells[i].hidePopover.bind(cells[i]));
+			}
+		},
+	
+		// Updates the cells array with any numbers entered into the ui
+		getInput: function () {
+			var cells = this.cells;
+			for (var i=0; i<cells.length; i++) {
+				cells[i].value = cells[i].el.value;
+			}
+		},
+	
+		getBlanks: function (selection) {
+			var cells = selection || this.cells,
+				ar = [];
+			for (var i = 0; i<cells.length; i++) {
+				if (cells[i].value === '') {
+					ar.push(cells[i])
+				}
+			}
+			return ar
+		},
+	
+		getGroup: function (group, id) {
+			var cells = this.cells,
+				ar = [];
+			for (var i=0; i < cells.length; i++) {
+				if (cells[i][group] === id) {
+					ar.push(cells[i]);
+				}
+			}
+			return ar;
+		},
 
+		getCell: function (x,y) {
+			var cells = this.cells;
+			for (var i=0; i < cells.length; i++) {
+				if (cells[i].x === x && cells[i].y === y) {
+					return cells[i]
+				}
+			}
+		},
+		// Search every blank cells' row, column and box and add any values found to 'not' list
+		// Then invert that by adding any missing DIGITS to the 'may' list
+		update: function () {
+			var blanks = this.getBlanks();
+		
+			blanks.forEach(function(blank) {
+				// Reset not and may lists
+				blank.not = [];
+				blank.may = [];
+
+				var cells = blank.getRemaining('x')
+						.concat(blank.getRemaining('y'))
+						.concat(blank.getRemaining('box'));
+
+				// Add any values in the cells box, row or column to not array
+				cells.forEach(function(cell) {
+					cell = cell.value;
+					// If cell has a value that isn't already in the blank's not list, add it
+					if (cell !== '' && !blank.not.has(cell)) {
+						blank.not.push(cell);
+					}
+				});
+		
+				// Add any DIGITS not in the 'not' list to the 'may' list
+				DIGITS.forEach(function (digit) {
+					if (!blank.not.has(digit)) {
+						blank.may.push(digit)
+					}
+				})
+			});
+		},
+		check: function () {
+			var blanks = this.getBlanks();
+			blanks.forEach(function (blank) {
+				if (blank.may.length === 1) {
+					// If blank has 8 not's set the remaining one as its value
+					blank.value = blank.may[0];
+					blank.el.value = blank.may[0];
+				}
+			})
+		},
+		
+		solve: function (group) {
+			var self = this,
+				groups = [];
+
+			for (var i = 0; i < 10; i++) {
+				groups.push(this.getGroup(group, i))
+			}
+			groups.forEach(function (group) {
+				DIGITS.forEach(function (digit) {
+					if (!group.has(digit)) {
+						var blanks = self.getBlanks(group),
+							maybes = [];
+						blanks.forEach(function(blank) {
+							if (!blank.not.has(digit)) {
+								maybes.push(blank)
+							}
+						});
+						if (maybes.length === 1) {
+							maybes[0].value = digit;
+							maybes[0].el.value = digit;
+							maybes[0].may = [];
+						}
+					}
+				})
+			})
+		}
+	}
+})();
 
 sudoku.init();
+sudoku.getInput();
+sudoku.update();
 
 
