@@ -22,16 +22,19 @@ $('#clear').click(function () {
 });
 
 $('#solve').click(function () {
-	var its = 20;
+	var iterations = 0;
 	sudoku.getInput();
-	while (sudoku.getBlanks().length && its > 0) {
+	while (sudoku.getBlanks().length && iterations < 20) {
 		sudoku.search();
 		sudoku.check();
 		sudoku.solve('box');
 		sudoku.solve('x');
 		sudoku.solve('y');
+		iterations++
 	}
-
+	if (iterations === 20) {
+		console.log('Solve failed')
+	}
 });
 
 var sudoku = {
