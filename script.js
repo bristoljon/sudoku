@@ -32,10 +32,10 @@ var sudoku = (function() {
 				sudoku.solve('box');
 				break;
 			case 'Column Search':
-				sudoku.solve('y');
+				sudoku.solve('x');
 				break;
 			case 'Row Search':
-				sudoku.solve('x');
+				sudoku.solve('y');
 				break;
 			case 'Solve':
 				var iterations = 0;
@@ -57,13 +57,14 @@ var sudoku = (function() {
 			default:
 				console.log('No handler found')
 		}
+		sudoku.check()
 	});
 
 	$('.solve').hover(function (e) {
 		var info = '';
 		switch (e.target.value) {
 			case 'Simple':
-				info = "For every blank, create a list of all the digits in it's row, column and box. If it can only be one digit, enters it.";
+				info = "For every blank, create a list of all the digits in that cells row, column and box. If it can only be one digit, enters it.";
 				break;
 			case 'Box Search':
 				info = "For each box, create list of cells where each digit could go. If only one place, enter it.";
@@ -154,6 +155,18 @@ var sudoku = (function() {
 		}
 	};
 
+	Cell.prototype.addNot = function (digit) {
+		 if (!this.not.has(digit)) {
+			 this.not.push(digit);
+			 this.may = [];
+
+			 var self = this;
+			 DIGITS.forEach(function (digit) {
+				 if (!self.not.has(digit)) self.may.push(digit)
+			 })
+		 }
+	};
+
 	Cell.prototype.showPopover = function (e) {
 		if (!this.value) {
 			$('#popover')
@@ -206,6 +219,7 @@ var sudoku = (function() {
 					cell.el.addEventListener('mouseout', cell.hidePopover.bind(cell));
 
 					cell.parent = this;
+					cell.value = cell.el.value;
 					this.cells.push(cell);
 				}
 			}
@@ -277,23 +291,10 @@ var sudoku = (function() {
 				cells.forEach(function(cell) {
 					cell = cell.value;
 					// If cell has a value that isn't already in the blank's not list, add it
-					if (cell !== '' && !blank.not.has(cell)) {
-						blank.not.push(cell);
+					if (cell !== '') {
+						blank.addNot(cell);
 					}
 				});
-		
-				// Add any DIGITS not in the 'not' list to the 'may' list
-				DIGITS.forEach(function (digit) {
-					if (!blank.not.has(digit)) {
-						blank.may.push(digit)
-					}
-				});
-
-				if (blank.may.length === 1) {
-					// If blank has 8 not's set the remaining one as its value
-					blank.value = blank.may[0];
-					blank.el.value = blank.may[0];
-				}
 			});
 		},
 		
@@ -315,19 +316,28 @@ var sudoku = (function() {
 							}
 						});
 						if (maybes.length === 1) {
-							maybes[0].value = digit;
-							maybes[0].el.value = digit;
-							maybes[0].may = [];
+							maybes[0].may = [digit];
 						}
 					}
 				})
+			})
+		},
+
+		check: function () {
+			var blanks = this.getBlanks();
+			blanks.forEach(function(blank) {
+
+				if (blank.may.length === 1) {
+					// If blank has 8 not's set the remaining one as its value
+					blank.value = blank.may[0];
+					blank.el.value = blank.may[0];
+				}
 			})
 		}
 	}
 })();
 
 sudoku.init();
-sudoku.getInput();
-sudoku.update();
+
 
 
