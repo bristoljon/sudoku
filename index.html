@@ -16,8 +16,8 @@
 	.container {
     	margin: 30px auto;
     	border: 1px black solid;
-    	width: 342px;
-    	height: 342px
+    	width: 348px;
+    	height: 348px
     }
     
     .container * {
@@ -25,6 +25,9 @@
     }
     
     .box {
+		border: 1px black solid;
+		width: 114px;
+		height: 114px;
     	margin: 0;
     	padding: 0;
     }
@@ -64,105 +67,15 @@
 	<input type="button" class="solve" value="Solve"/>
 	<div id="tooltip"></div>
 	<div class="container">
-		<div class='box'>
-			<input type='text' class="cell" value="9" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" value="1" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" value="7" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" value="8" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-		</div>
-		<div class='box'>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" value="6" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" value="2" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" value="7" maxlength="1"/>
-		</div>
-		<div class='box'>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" value="6" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" value="1" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" value="4" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-		</div>
-		<div class='box'>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" value="7" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-		</div>
-		<div class='box'>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" value="9" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" value="5" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell"/ value="4" maxlength="1">
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" value="2" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-		</div>
-		<div class='box'>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" value="2" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-		</div>
-		<div class='box'>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" value="7" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" value="2" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" value="3" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-		</div>
-		<div class='box'>
-			<input type='text' class="cell" value="8" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" value="5" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" value="6" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-		</div>
-		<div class='box'>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" value="2" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" value="8" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" value="6" maxlength="1"/>
-			<input type='text' class="cell" maxlength="1"/>
-			<input type='text' class="cell" value="9" maxlength="1"/>
-		</div>
+		<div class='box' id="0"></div>
+		<div class='box' id="1"></div>
+		<div class='box' id="2"></div>
+		<div class='box' id="3"></div>
+		<div class='box' id="4"></div>
+		<div class='box' id="5"></div>
+		<div class='box' id="6"></div>
+		<div class='box' id="7"></div>
+		<div class='box' id="8"></div>
 	</div>
 	<div id="popover"></div>
 

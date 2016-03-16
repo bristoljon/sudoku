@@ -19,9 +19,7 @@ var sudoku = (function() {
 	};
 	
 	$('#clear').click(function () {
-		sudoku.$cells.val('');
-		sudoku.init();
-		sudoku.getInput();
+		sudoku.reset()
 	});
 	
 	$('.solve').click(function (e) {
@@ -101,7 +99,7 @@ var sudoku = (function() {
 		};
 	})();
 
-	// Method to grab the remaining cells in a given row, column or box
+	// Method to grab all the cells in a given cell's row, column and box
 	Cell.prototype.getRemaining = function (prop) {
 		var ar = [],
 			cells = this.parent.cells;
@@ -118,27 +116,29 @@ var sudoku = (function() {
 	Cell.prototype.navigate = function (event) {
 		switch (event.keyCode) {
 			case 37: // Left
-				console.log('left');
-				if (this.y > 0) {
-					$(sudoku.getCell(this.x, this.y - 1).el).focus()
-				}
-				break;
-			case 38:
-				console.log('up');
 				if (this.x > 0) {
-					$(sudoku.getCell(this.x - 1, this.y).el).focus()
+					$(sudoku.getCell(this.x -1, this.y).el).focus()
+				}
+				else {
+					$(sudoku.getCell(8, this.y - 1).el).focus()
 				}
 				break;
-			case 39: // Left
-				console.log('right');
-				if (this.y < 8) {
-					$(sudoku.getCell(this.x, this.y + 1).el).focus()
+			case 38: // Up
+				if (this.y > 0) {
+					$(sudoku.getCell(this.x, this.y -1).el).focus()
 				}
 				break;
-			case 40: // Left
-				console.log('down');
+			case 39: // Right
 				if (this.x < 8) {
 					$(sudoku.getCell(this.x + 1, this.y).el).focus()
+				}
+				else {
+					$(sudoku.getCell(0, this.y + 1).el).focus()
+				}
+				break;
+			case 40: //Down
+				if (this.y < 8) {
+					$(sudoku.getCell(this.x, this.y + 1).el).focus()
 				}
 				break;
 			default:
@@ -169,42 +169,56 @@ var sudoku = (function() {
 	
 	return {
 		cells: [],
-		$cells: $('.cell'),
-		// Generates an array of cells and adds box reference to each one
+		$cells: [],
+		// Generates an array of cells with x, y and box attributes and creates linked
+
 		init: function () {
 			$('#popover').hide();
 			$('#tooltip').hide();
-			this.cells = [];
-			for (var x=0; x<9; x++ ) {
-				for (var y=0; y<9; y++ ) {
+
+			for (var y=0; y<9; y++ ) {
+				for (var x=0; x<9; x++ ) {
 					var cell = new Cell(x,y);
-					if (x < 3) {
-						if (y < 3) cell.box = 0;
-						else if (y < 6) cell.box = 1;
+					if (y < 3) {
+						if (x < 3) cell.box = 0;
+						else if (x < 6) cell.box = 1;
 						else cell.box = 2;
 					}
-					else if (x < 6) {
-						if (y < 3) cell.box = 3;
-						else if (y < 6) cell.box = 4;
+					else if (y < 6) {
+						if (x < 3) cell.box = 3;
+						else if (x < 6) cell.box = 4;
 						else cell.box = 5;
 					}
 					else {
-						if (y < 3) cell.box = 6;
-						else if (y < 6) cell.box = 7;
+						if (x < 3) cell.box = 6;
+						else if (x < 6) cell.box = 7;
 						else cell.box = 8;
 					}
+					cell.el = document.createElement('input');
+					cell.el.setAttribute('type','text');
+					cell.el.setAttribute('class', 'cell');
+					cell.el.setAttribute('maxlength','1');
+					var box = document.getElementById(cell.box);
+					box.appendChild(cell.el);
+
+					cell.el.addEventListener('keydown', cell.navigate.bind(cell));
+					cell.el.addEventListener('mouseover', cell.showPopover.bind(cell));
+					cell.el.addEventListener('mouseout', cell.hidePopover.bind(cell));
+
 					cell.parent = this;
 					this.cells.push(cell);
 				}
 			}
-			// Add a ref to the dom element for each cell and add listeners
-			var cells = this.cells;
-			for (var i = 0; i < cells.length; i++) {
-				cells[i].el = this.$cells[i];
-				cells[i].el.addEventListener('keydown', cells[i].navigate.bind(cells[i]));
-				cells[i].el.addEventListener('mouseover', cells[i].showPopover.bind(cells[i]));
-				cells[i].el.addEventListener('mouseout', cells[i].hidePopover.bind(cells[i]));
-			}
+			this.$cells = $('.cell');
+		},
+
+		reset: function () {
+			sudoku.$cells.val('');
+			this.cells.forEach(function (cell) {
+				cell.value = '';
+				cell.not = [];
+				cell.may = [];
+			})
 		},
 	
 		// Updates the cells array with any numbers entered into the ui
