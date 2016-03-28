@@ -2,7 +2,7 @@ var sudoku = (function() {
 
 	const DIGITS = ['1','2','3','4','5','6','7','8','9'];
 	
-	// Polyfill function to check array for item
+	// Check array for item, or check array of cells for cell.value
 	Array.prototype.has = function (item) {
 		// Allows checking array of cells for value
 		if (typeof this[0] === 'object') {
@@ -17,35 +17,93 @@ var sudoku = (function() {
 		}
 		return false
 	};
+
+	// Remove item from array
+	Array.prototype.remove = function (item) {
+		var index = this.indexOf(item);
+		if (index > -1) this.splice(index, 1);
+	};
+
+	// Remove duplicated cells from array
+	Array.prototype.removeDuplicates = function () {
+		// Sort by cell.id number
+		var cells = this.sort( (a,b) => {
+			if (a.id < b.id) return -1;
+			if (a.id > b.id) return 1;
+			return 0
+		});
+		var ar = [];
+		ar.push(cells[0]);
+		for (var i = 1; i < cells.length; i++) {
+			if (cells[i].id !== ar[ar.length-1].id) {
+				ar.push(cells[i])
+			}
+		};
+		return ar
+	};
+
+	Array.prototype.getBlanks = function () {
+		var ar = [];
+		for (var i =0; i < this.length; i++) {
+			if (this[i].value === '') ar.push(this[i])
+		}
+		return ar;
+	};
+
 	
 	$('#clear').click(function () {
-		sudoku.reset()
+		sudoku.clear()
+	});
+
+	$('#save').click(function () {
+		sudoku.save()
+	});
+
+	$('#load').click(function () {
+		sudoku.load()
 	});
 	
 	$('.solve').click(function (e) {
-		sudoku.getInput();
+		var speed = sudoku.config.speed;
 		switch (e.target.value) {
 			case 'Simple':
-				sudoku.update();
+				sudoku.updater = sudoku.update();
+				window.setInterval( () => {
+					sudoku.updater.next();
+				}, speed);
 				break;
 			case 'Box Search':
-				sudoku.solve('box');
+				sudoku.boxSearcher = sudoku.search('box');
+				window.setInterval( () => {
+					sudoku.boxSearcher.next();
+				}, speed);
 				break;
 			case 'Column Search':
-				sudoku.solve('x');
+				sudoku.xSearcher = sudoku.search('x');
+				window.setInterval( () => {
+					sudoku.xSearcher.next();
+				}, speed);
 				break;
 			case 'Row Search':
-				sudoku.solve('y');
+				sudoku.ySearcher = sudoku.search('y');
+				window.setInterval( () => {
+					sudoku.ySearcher.next();
+				}, speed);
 				break;
 			case 'Solve':
 				var iterations = 0;
 				console.time('Solved');
 
 				while (sudoku.getBlanks().length) {
-					sudoku.update();
-					sudoku.solve('box');
-					sudoku.solve('x');
-					sudoku.solve('y');
+					iterations ++;
+					for (let n of sudoku.update()) {
+					};
+					for (let n of sudoku.search('box')) {
+					}
+					for (let n of sudoku.search('x')) {
+					}
+					for (let n of sudoku.search('y')) {
+					}
 					if (++iterations > 19) break;
 				}
 				console.timeEnd('Solved');
@@ -57,7 +115,6 @@ var sudoku = (function() {
 			default:
 				console.log('No handler found')
 		}
-		sudoku.check()
 	});
 
 	$('.solve').hover(function (e) {
@@ -94,26 +151,38 @@ var sudoku = (function() {
 			this.x = x;
 			this.y = y;
 			this.id = counter++;
-			this.not = [];
-			this.may = [];
-			return this;
+			this.maybes = ['1','2','3','4','5','6','7','8','9'];
+
+			// Wrap in proxy to enable visualisation of 'thinking'
+			var proxy = new Proxy(this, {
+				set: function (target, property, value) {
+					switch (property) {
+						case 'value':
+							target.el.value = value;
+							break;
+					}
+					target[property] = value;
+				}
+			});
+			return proxy;
 		};
 	})();
 
 	// Method to grab all the cells in a given cell's row, column and box
 	Cell.prototype.getRemaining = function (prop) {
 		var ar = [],
-			cells = this.parent.cells;
+			cells = sudoku.cells;
 
 		for (var i=0; i<cells.length; i++) {
-			if (cells[i][prop] === this[prop] && cells[i].id !== this.id) {
+			if (cells[i][prop] === this[prop] &&
+				cells[i].id !== this.id) {
 				ar.push(cells[i]);
 			}
 		}
 		return ar;
 	};
 
-	// Arrow key event handler
+	// Arrow key event handler (bound to cell object)
 	Cell.prototype.navigate = function (event) {
 		switch (event.keyCode) {
 			case 37: // Left
@@ -142,12 +211,18 @@ var sudoku = (function() {
 					$(sudoku.getCell(this.x, this.y + 1).el).focus()
 				}
 				break;
+			case 46: // Delete key
+			case 8: // Backspace
+				// Reverse the changes made by updateGroup by passing digit to re add to maybes list
+				this.maybes.push(this.value);
+				this.updateGroup(this.value);
+				this.value = '';
+				break;
 			default:
 				var key = String.fromCharCode(event.keyCode);
-				if (DIGITS.has(key) && !this.not.has(key)) {
-					this.el.value = key;
+				if (DIGITS.has(key) && this.couldBe(key)) {
 					this.value = key;
-					sudoku.update();
+					this.updateGroup();
 				}
 				else {
 					event.preventDefault()
@@ -155,22 +230,36 @@ var sudoku = (function() {
 		}
 	};
 
-	Cell.prototype.addNot = function (digit) {
-		 if (!this.not.has(digit)) {
-			 this.not.push(digit);
-			 this.may = [];
+	// Returns true if digit is found in cells maybes list
+	Cell.prototype.couldBe = function (digit)  {
+		for (var i = 0; i < this.maybes.length; i++) {
+			if (this.maybes[i] === digit) return true
+		}
+		return false
+	};
 
-			 var self = this;
-			 DIGITS.forEach(function (digit) {
-				 if (!self.not.has(digit)) self.may.push(digit)
-			 })
-		 }
+	// Updates the cells in a given cells row, column and box when its value has changed
+	// Digit parameter is only used when user deletes a digit so the group can re-add it
+	Cell.prototype.updateGroup = function (digit) {
+		var cells = this.getRemaining('x')
+			.concat(this.getRemaining('y'))
+			.concat(this.getRemaining('box'))
+			.removeDuplicates()
+			.getBlanks();
+
+		cells.forEach( (cell) => {
+			if (!digit) {
+				cell.maybes.remove(this.value);
+			}
+			else cell.maybes.push(digit);
+		})
 	};
 
 	Cell.prototype.showPopover = function (e) {
+		console.log('show');
 		if (!this.value) {
 			$('#popover')
-			.html('Not: ' + this.not.sort() + '<br/> Maybe: ' + this.may.sort())
+			.html('Maybe: ' + this.maybes)
 			.css({'top': e.pageY, 'left': e.pageX})
 			.show();
 		}
@@ -179,12 +268,27 @@ var sudoku = (function() {
 	Cell.prototype.hidePopover = function () {
 		$('#popover').hide();
 	};
+
+	Cell.prototype.flash = function (colour, time) {
+		var current = $(this.el).css('background-color');
+		$(this.el).animate({backgroundColor: colour}, time);
+		$(this.el).animate({backgroundColor: current}, time);
+	};
+
+	Cell.prototype.highlight = function (colour) {
+		$(this.el).css({backgroundColor: colour});
+	};
 	
 	return {
 		cells: [],
 		$cells: [],
-		// Generates an array of cells with x, y and box attributes and creates linked
+		config: {
+			visuals: true,
+			speed: 10
+		},
+		updater: null,
 
+		// Generates an array of cells with x, y and box attributes and creates linked
 		init: function () {
 			$('#popover').hide();
 			$('#tooltip').hide();
@@ -218,7 +322,6 @@ var sudoku = (function() {
 					cell.el.addEventListener('mouseover', cell.showPopover.bind(cell));
 					cell.el.addEventListener('mouseout', cell.hidePopover.bind(cell));
 
-					cell.parent = this;
 					cell.value = cell.el.value;
 					this.cells.push(cell);
 				}
@@ -226,21 +329,12 @@ var sudoku = (function() {
 			this.$cells = $('.cell');
 		},
 
-		reset: function () {
+		clear: function () {
 			sudoku.$cells.val('');
 			this.cells.forEach(function (cell) {
 				cell.value = '';
-				cell.not = [];
-				cell.may = [];
+				cell.maybes = ['1','2','3','4','5','6','7','8','9'];
 			})
-		},
-	
-		// Updates the cells array with any numbers entered into the ui
-		getInput: function () {
-			var cells = this.cells;
-			for (var i=0; i<cells.length; i++) {
-				cells[i].value = cells[i].el.value;
-			}
 		},
 	
 		getBlanks: function (selection) {
@@ -274,65 +368,103 @@ var sudoku = (function() {
 			}
 		},
 		// Search every blank cells' row, column and box and add any values found to 'not' list
-		// Then invert that by adding any missing DIGITS to the 'may' list
-		update: function () {
+		update: function* () {
 			var blanks = this.getBlanks();
-		
-			blanks.forEach(function(blank) {
-				// Reset not and may lists
-				blank.not = [];
-				blank.may = [];
+			for (var i = 0; i < blanks.length; i++) {
+				blanks[i].highlight('pink');
+				yield;
 
-				var cells = blank.getRemaining('x')
-						.concat(blank.getRemaining('y'))
-						.concat(blank.getRemaining('box'));
+				var cells = blanks[i].getRemaining('x')
+						.concat(blanks[i].getRemaining('y'))
+						.concat(blanks[i].getRemaining('box'))
+						.removeDuplicates()
+						.getBlanks();
 
-				// Add any values in the cells box, row or column to not array
-				cells.forEach(function(cell) {
-					cell = cell.value;
-					// If cell has a value that isn't already in the blank's not list, add it
-					if (cell !== '') {
-						blank.addNot(cell);
+				// Remove any values found in that cells' groups from it's maybes list
+				for (var j = 0; j < cells.length; j++) {
+					var digit = cells[j].value;
+					cells[j].highlight('orange');
+					yield;
+
+					if (digit !== '') {
+						cells[j].highlight('green');
+						blanks[i].maybes.remove(digit);
+						blanks[i].highlight('green');
+						yield;
 					}
-				});
-			});
+					cells[j].highlight('white');
+				}
+				// Sets value to digit in maybes list if only one remains
+				if (blanks[i].maybes.length === 1) {
+					blanks[i].value = blanks[i].maybes[0];
+					blanks[i].el.style.color = 'pink';
+					blanks[i].maybes = [];
+					blanks[i].updateGroup();
+					yield;
+				}
+				else {
+					blanks[i].highlight('white');
+				}
+			}
 		},
-		
-		solve: function (group) {
+
+		// Solve method that checks the possible position for each digit in the group
+		search: function* (group) {
 			var self = this,
 				groups = [];
 
 			for (var i = 0; i < 10; i++) {
 				groups.push(this.getGroup(group, i))
 			}
-			groups.forEach(function (group) {
-				DIGITS.forEach(function (digit) {
-					if (!group.has(digit)) {
-						var blanks = self.getBlanks(group),
+			for (var i = 0; i < groups.length; i++) {
+				for (var j = 0; j < DIGITS.length; j++) {
+					if (!groups[i].has(DIGITS[j])) {
+						var blanks = self.getBlanks(groups[i]),
 							maybes = [];
-						blanks.forEach(function(blank) {
-							if (!blank.not.has(digit)) {
-								maybes.push(blank)
+						for (var k = 0; k < blanks.length; k++) {
+							blanks[k].el.value = DIGITS[j];
+							yield;
+							if (blanks[k].couldBe(DIGITS[j])) {
+								blanks[k].highlight('pink');
+								maybes.push(blanks[k])
+								yield;
 							}
-						});
+							blanks[k].el.value = '';
+							blanks[k].highlight('white');
+						};
 						if (maybes.length === 1) {
-							maybes[0].may = [digit];
+							maybes[0].maybes = [];
+							maybes[0].value = DIGITS[j];
+							maybes[0].updateGroup();
+							maybes[0].el.style.color = 'green';
+							yield;
 						}
 					}
-				})
-			})
+				}
+			}
 		},
 
-		check: function () {
-			var blanks = this.getBlanks();
-			blanks.forEach(function(blank) {
+		save: function () {
+			// Remove el property before storing as causes circular structure error
+			var cells = this.cells.map( (cell) => {
+				var save = {};
+				save.value = cell.value;
+				save.maybes = cell.maybes;
+				return save;
+			});
+			localStorage.setItem('puzzle', JSON.stringify(cells));
+		},
 
-				if (blank.may.length === 1) {
-					// If blank has 8 not's set the remaining one as its value
-					blank.value = blank.may[0];
-					blank.el.value = blank.may[0];
+		load: function () {
+			var cells = JSON.parse(localStorage.getItem('puzzle'));
+			for (var i = 0; i < cells.length; i++) {
+				for (var prop in cells[i]) {
+					this.cells[i][prop] = cells[i][prop]
 				}
-			})
+			}
+		},
+		solve: function (method, visuals = true) {
+
 		}
 	}
 })();

@@ -10,34 +10,37 @@
     <title>Sudoku Cracker</title>
 
     <link href='http://fonts.googleapis.com/css?family=Yanone+Kaffeesatz' rel='stylesheet' type='text/css'>
+	<link href="/css/styles.min.css" rel="stylesheet">
 
     <style type="text/css">
-    
-	.container {
+
+	* {
+		padding: 0;
+		margin: 0;
+		text-align: center
+	}
+	.puzzle {
     	margin: 30px auto;
-    	border: 1px black solid;
-    	width: 348px;
-    	height: 348px
+    	width: 332px;
+    	height: 332px;
+		border: 1px grey solid;
     }
     
-    .container * {
+    .puzzle * {
+		box-sizing: border-box;
     	float:left;
     }
     
     .box {
-		border: 1px black solid;
-		width: 114px;
-		height: 114px;
-    	margin: 0;
-    	padding: 0;
+		border: 1px blue solid;
+		width: 110px;
+		height: 110px;
     }
     
     .cell {
     	border: 1px red solid;
     	height: 36px;
     	width: 36px;
-    	text-align: center;
-    	padding: 0;
 		font-size: 1.6em;
     }
 
@@ -58,15 +61,8 @@
     </style>
 
 <body>
-    <h1>Sudoku Solver</h1>
-	<input type="button" id="clear" value="Clear"/>
-	<input type="button" class="solve" value="Simple"/>
-	<input type="button" class="solve" value="Box Search"/>
-	<input type="button" class="solve" value="Column Search"/>
-	<input type="button" class="solve" value="Row Search"/>
-	<input type="button" class="solve" value="Solve"/>
-	<div id="tooltip"></div>
-	<div class="container">
+    <h1 class="text-center">Sudoku Solver</h1>
+	<div class="puzzle">
 		<div class='box' id="0"></div>
 		<div class='box' id="1"></div>
 		<div class='box' id="2"></div>
@@ -77,10 +73,22 @@
 		<div class='box' id="7"></div>
 		<div class='box' id="8"></div>
 	</div>
+	<div class="text-center controls">
+		<input type="button" class="btn btn-danger" id="clear" value="Clear"/>
+		<input type="button" class="btn btn-danger" id="save" value="Save"/>
+		<input type="button" class="btn btn-danger" id="load" value="Load"/>
+		<input type="button" class="btn btn-success solve" value="Simple"/>
+		<input type="button" class="btn btn-success solve" value="Box Search"/>
+		<input type="button" class="btn btn-success solve" value="Column Search"/>
+		<input type="button" class="btn btn-success solve" value="Row Search"/>
+		<input type="button" class="btn btn-success solve" value="Solve"/>
+	</div>
+	<div id="tooltip"></div>
 	<div id="popover"></div>
 
-<script type="text/javascript" src="http://code.jquery.com/jquery-latest.min.js"></script>
-<script type="text/javascript" src="script.js"></script>
+	<script type="text/javascript" src="http://code.jquery.com/jquery-latest.min.js"></script>
+	<script type="text/javascript" src="script.js"></script>
+	<script type="text/javascript" src="https://code.jquery.com/ui/1.12.0-rc.1/jquery-ui.min.js"</script>
 
 <script type="text/javascript">
 
