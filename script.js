@@ -62,24 +62,36 @@ var sudoku = (function() {
 	$('#load').click(function () {
 		sudoku.load()
 	});
+
+	$('#visualOff').click(function () {
+		sudoku.config.visuals = 0
+	});
+
+	$('#visualSlow').click(function () {
+		sudoku.config.visuals = 500
+	});
+
+	$('#visualFast').click(function () {
+		sudoku.config.visuals = 10
+	});
 	
 	$('.solve').click(function (e) {
 		switch (e.target.value) {
 			case 'Not Search':
 				var iterator = sudoku.update();
-				sudoku.solve(iterator, true);
+				sudoku.solve(iterator);
 				break;
 			case 'Box Search':
 				var iterator = sudoku.search('box');
-				sudoku.solve(iterator, true);
+				sudoku.solve(iterator);
 				break;
 			case 'Column Search':
 				var iterator = sudoku.search('x');
-				sudoku.solve(iterator, true);
+				sudoku.solve(iterator);
 				break;
 			case 'Row Search':
 				var iterator = sudoku.search('y');
-				sudoku.solve(iterator, true);
+				sudoku.solve(iterator);
 				break;
 			case 'Solve':
 				var iterations = 0,
@@ -91,31 +103,33 @@ var sudoku = (function() {
 					let startBlanks,
 						endBlanks;
 
+					sudoku.config.visuals = 0;
+
 					// This code should be more DRY..
 					do {
 						startBlanks = sudoku.getBlanks().length;
-						sudoku.solve(sudoku.update(), false);
+						sudoku.solve(sudoku.update());
 						endBlanks = sudoku.getBlanks().length
 					}
 					while (endBlanks < startBlanks);
 
 					do {
 						startBlanks = sudoku.getBlanks().length;
-						sudoku.solve(sudoku.search('box'), false);
+						sudoku.solve(sudoku.search('box'));
 						endBlanks = sudoku.getBlanks().length
 					}
 					while (endBlanks < startBlanks);
 
 					do {
 						startBlanks = sudoku.getBlanks().length;
-						sudoku.solve(sudoku.search('x'), false);
+						sudoku.solve(sudoku.search('x'));
 						endBlanks = sudoku.getBlanks().length
 					}
 					while (endBlanks < startBlanks);
 
 					do {
 						startBlanks = sudoku.getBlanks().length;
-						sudoku.solve(sudoku.search('y'), false);
+						sudoku.solve(sudoku.search('y'));
 						endBlanks = sudoku.getBlanks().length
 					}
 					while (endBlanks < startBlanks);
@@ -271,8 +285,7 @@ var sudoku = (function() {
 	return {
 		cells: [],
 		config: {
-			visuals: true,
-			speed: 10
+			visuals: 10
 		},
 
 		// Generates an array of cells with x, y and box attributes and creates linked
@@ -406,12 +419,15 @@ var sudoku = (function() {
 							maybes = [];
 						for (var k = 0; k < blanks.length; k++) {
 							blanks[k].el.value = DIGITS[j];
-							yield;
 							if (blanks[k].couldBe(DIGITS[j])) {
-								blanks[k].highlight('pink');
+								blanks[k].highlight('green');
 								maybes.push(blanks[k])
-								yield;
+
 							}
+							else {
+								blanks[k].highlight('red');
+							}
+							yield;
 							blanks[k].el.value = '';
 							blanks[k].highlight('white');
 						};
@@ -458,10 +474,10 @@ var sudoku = (function() {
 				}
 			}
 		},
-		solve: function (iterator, visuals = true) {
-			if (visuals) {
-				var speed = this.config.speed,
-					ref = window.setInterval( () => {
+		solve: function (iterator) {
+			var speed = this.config.visuals;
+			if (speed) {
+				var ref = window.setInterval( () => {
 						var state = iterator.next();
 						if (state.done) {
 							window.clearInterval(ref);
