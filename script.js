@@ -137,33 +137,6 @@ var sudoku = (function() {
 				console.log('No handler found')
 		}
 	});
-
-	$('.solve').hover(function (e) {
-		var info = '';
-		switch (e.target.value) {
-			case 'Not Search':
-				info = "For every blank, create a list of all the digits in that cells row, column and box. If it can only be one digit, enters it.";
-				break;
-			case 'Box Search':
-				info = "For each box, create list of cells where each digit could go. If only one place, enter it.";
-				break;
-			case 'Column Search':
-				info = "For each column, create list of cells where each digit could go. If only one place, enter it.";
-				break;
-			case 'Row Search':
-				info = "For each row, create list of cells where each digit could go. If only one place, enter it.";
-				break;
-			case 'Solve':
-				info = "Simple, Box, Column and Row search until no blanks remain or maximum iterations reached";
-				break;
-			default:
-				console.log('No handler found')
-				break;
-		}
-		$('#tooltip')
-			.text(info)
-			.toggle();
-	});
 	
 	// Cell constructor that adds unique ID to each one
 	var Cell = (function() {
@@ -205,6 +178,7 @@ var sudoku = (function() {
 
 	// Arrow key event handler (bound to cell object)
 	Cell.prototype.navigate = function (event) {
+		event.preventDefault();
 		var current = this.value;
 		switch (event.keyCode) {
 			case 37: // Left
@@ -284,23 +258,10 @@ var sudoku = (function() {
 	};
 
 	Cell.prototype.showPopover = function (e) {
-		console.log('show');
-		if (!this.value) {
-			$('#popover')
-			.html('Maybe: ' + this.maybes.sort())
-			.css({'top': e.pageY, 'left': e.pageX})
-			.show();
-		}
-	};
-
-	Cell.prototype.hidePopover = function () {
-		$('#popover').hide();
-	};
-
-	Cell.prototype.flash = function (colour, time) {
-		var current = $(this.el).css('background-color');
-		$(this.el).animate({backgroundColor: colour}, time);
-		$(this.el).animate({backgroundColor: current}, time);
+		$('#popover')
+		.html('Maybe: ' + this.maybes.sort())
+		//.css({'top': e.pageY, 'left': e.pageX})
+		.show();
 	};
 
 	Cell.prototype.highlight = function (colour) {
@@ -309,12 +270,10 @@ var sudoku = (function() {
 	
 	return {
 		cells: [],
-		$cells: [],
 		config: {
 			visuals: true,
 			speed: 10
 		},
-		updater: null,
 
 		// Generates an array of cells with x, y and box attributes and creates linked
 		init: function () {
@@ -340,15 +299,18 @@ var sudoku = (function() {
 						else cell.box = 8;
 					}
 					cell.el = document.createElement('input');
-					cell.el.setAttribute('type','text');
+					cell.el.setAttribute('type','number');
 					cell.el.setAttribute('class', 'cell');
 					cell.el.setAttribute('maxlength','1');
 					var box = document.getElementById(cell.box);
 					box.appendChild(cell.el);
 
-					cell.el.addEventListener('keydown', cell.navigate.bind(cell));
+					cell.el.addEventListener('keyup', cell.navigate.bind(cell));
+					cell.el.addEventListener('keydown', (e) => {
+						e.preventDefault();
+					});
+					cell.el.addEventListener('click', cell.showPopover.bind(cell));
 					cell.el.addEventListener('mouseover', cell.showPopover.bind(cell));
-					cell.el.addEventListener('mouseout', cell.hidePopover.bind(cell));
 
 					cell.value = cell.el.value;
 					this.cells.push(cell);

@@ -20,7 +20,7 @@
 		text-align: center
 	}
 	.puzzle {
-    	margin: 30px auto;
+    	margin: 15px auto;
     	width: 332px;
     	height: 332px;
 		border: 1px grey solid;
@@ -45,23 +45,29 @@
     }
 
 	#popover {
-		position: absolute;
 		border: 1px solid black;
 		padding: 5px;
+		margin-top: 10px;
 		background-color: white;
 	}
 
-	#tooltip {
-		position: absolute;
-		border: 1px solid black;
-		padding: 5px;
-		background-color: white;
+	input::-webkit-outer-spin-button,
+	input::-webkit-inner-spin-button {
+		/* display: none; <- Crashes Chrome on hover */
+		-webkit-appearance: none;
+		margin: 0; /* <-- Apparently some margin are still there even though it's hidden */
 	}
     
     </style>
 
 <body>
     <h1 class="text-center">Sudoku Solver</h1>
+	<div>
+		<input type="button" class="btn btn-danger" id="clear" value="Clear"/>
+		<input type="button" class="btn btn-danger" id="save" value="Save"/>
+		<input type="button" class="btn btn-danger" id="load" value="Load"/>
+	</div>
+
 	<div class="puzzle">
 		<div class='box' id="0"></div>
 		<div class='box' id="1"></div>
@@ -74,9 +80,6 @@
 		<div class='box' id="8"></div>
 	</div>
 	<div class="text-center controls">
-		<input type="button" class="btn btn-danger" id="clear" value="Clear"/>
-		<input type="button" class="btn btn-danger" id="save" value="Save"/>
-		<input type="button" class="btn btn-danger" id="load" value="Load"/>
 		<input type="button" class="btn btn-success solve" value="Not Search"/>
 		<input type="button" class="btn btn-success solve" value="Box Search"/>
 		<input type="button" class="btn btn-success solve" value="Column Search"/>
@@ -84,12 +87,24 @@
 		<input type="button" class="btn btn-success solve" value="Solve"/>
 
 	</div>
-	<div id="tooltip"></div>
 	<div id="popover"></div>
+	<div id="instructions">
+		<h4>Instructions</h4>
+		<p>Enter digits in the grid; you can use arrow keys on keyboard or click / touch.</p>
+		<p>Hover over (or touch on mobile) any cell to view the digits it could be. This updates automatically whenever a cell changes.</p>
+		<p>Use 'Save' to store the current puzzle state so you can return to the beginning if you want.</p>
+		<p>Use a combination of different search methods to solve the puzzle. You should wait till one search has finished before doing the next. Although it will let you trigger multiple searches at once and it looks cool, it will probably fail to solve..</p>
+		<ul>
+			<li>Not Search - For every blank, create a list of all the digits in that cells row, column and box. If it can only be one digit, enters it.</li>
+			<li>Box Search - For each box, create list of cells where each digit could go. If only one place, enter it</li>
+			<li>Column Search - For each column, create list of cells where each digit could go. If only one place, enter it.</li>
+			<li>Row Search - For each row, create list of cells where each digit could go. If only one place, enter it.</li>
+			<li>Solve - Simple, Box, Column and Row search until no blanks remain or maximum iterations reached</li>
+		</ul>
+	</div>
 
 	<script type="text/javascript" src="http://code.jquery.com/jquery-latest.min.js"></script>
 	<script type="text/javascript" src="script.js"></script>
-	<script type="text/javascript" src="https://code.jquery.com/ui/1.12.0-rc.1/jquery-ui.min.js"</script>
 
 <script type="text/javascript">
 
