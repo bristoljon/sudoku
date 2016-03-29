@@ -88,7 +88,7 @@ var sudoku = (function() {
 				while (sudoku.getBlanks().length) {
 					iterations ++;
 					for (let n of sudoku.update()) {
-					};
+					}
 					for (let n of sudoku.search('box')) {
 					}
 					for (let n of sudoku.search('x')) {
@@ -331,14 +331,6 @@ var sudoku = (function() {
 			}
 			this.$cells = $('.cell');
 		},
-
-		clear: function () {
-			sudoku.$cells.val('');
-			this.cells.forEach(function (cell) {
-				cell.value = '';
-				cell.maybes = ['1','2','3','4','5','6','7','8','9'];
-			})
-		},
 	
 		getBlanks: function (selection) {
 			var cells = selection || this.cells,
@@ -400,7 +392,7 @@ var sudoku = (function() {
 				// Sets value to digit in maybes list if only one remains
 				if (blanks[i].maybes.length === 1) {
 					blanks[i].value = blanks[i].maybes[0];
-					blanks[i].el.style.color = 'pink';
+					blanks[i].el.style.color = 'green';
 					blanks[i].updateGroup();
 					yield;
 				}
@@ -444,6 +436,16 @@ var sudoku = (function() {
 			}
 		},
 
+		clear: function () {
+			sudoku.$cells.val('');
+			this.cells.forEach(function (cell) {
+				cell.value = '';
+				cell.maybes = ['1','2','3','4','5','6','7','8','9'];
+				cell.el.style.color = 'black';
+				cell.highlight('white');
+			})
+		},
+
 		save: function () {
 			// Remove el property before storing as causes circular structure error
 			var cells = this.cells.map( (cell) => {
@@ -456,6 +458,7 @@ var sudoku = (function() {
 		},
 
 		load: function () {
+			this.clear();
 			var cells = JSON.parse(localStorage.getItem('puzzle'));
 			for (var i = 0; i < cells.length; i++) {
 				for (var prop in cells[i]) {
