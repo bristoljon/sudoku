@@ -88,25 +88,37 @@ var sudoku = (function() {
 
 				while (sudoku.getBlanks().length) {
 					iterations ++;
-					var methods = [
-						[sudoku.update, 'something'],
-						[sudoku.search, 'box'],
-						[sudoku.search, 'x'],
-						[sudoku.search, 'y']
-					];
+					let startBlanks,
+						endBlanks;
 
-					for (var i = 0; i < methods.length; i++) {
-						var method = methods[i],
-							iterator = method[0](method[1]),
-							startBlanks,
-							endBlanks;
-						do {
-							startBlanks = sudoku.getBlanks().length;
-							sudoku.solve(iterator, false);
-							endBlanks = sudoku.getBlanks().length
-						}
-						while (endBlanks < startBlanks)
+					// This code should be more DRY..
+					do {
+						startBlanks = sudoku.getBlanks().length;
+						sudoku.solve(sudoku.update(), false);
+						endBlanks = sudoku.getBlanks().length
 					}
+					while (endBlanks < startBlanks);
+
+					do {
+						startBlanks = sudoku.getBlanks().length;
+						sudoku.solve(sudoku.search('box'), false);
+						endBlanks = sudoku.getBlanks().length
+					}
+					while (endBlanks < startBlanks);
+
+					do {
+						startBlanks = sudoku.getBlanks().length;
+						sudoku.solve(sudoku.search('x'), false);
+						endBlanks = sudoku.getBlanks().length
+					}
+					while (endBlanks < startBlanks);
+
+					do {
+						startBlanks = sudoku.getBlanks().length;
+						sudoku.solve(sudoku.search('y'), false);
+						endBlanks = sudoku.getBlanks().length
+					}
+					while (endBlanks < startBlanks);
 
 					if (++iterations > 19) break;
 				}
@@ -377,7 +389,8 @@ var sudoku = (function() {
 		},
 		// Search every blank cells' row, column and box and add any values found to 'not' list
 		update: function* () {
-			var blanks = this.getBlanks();
+			var blanks = this.getBlanks(),
+				changed = 0;
 			for (var i = 0; i < blanks.length; i++) {
 				blanks[i].highlight('pink');
 				yield;
@@ -407,17 +420,19 @@ var sudoku = (function() {
 					blanks[i].value = blanks[i].maybes[0];
 					blanks[i].el.style.color = 'green';
 					blanks[i].updateGroup();
+					changed++;
 					yield;
 				}
 				blanks[i].highlight('white');
-
 			}
+			return changed;
 		},
 
 		// Solve method that checks the possible position for each digit in the group
 		search: function* (group) {
 			var self = this,
-				groups = [];
+				groups = [],
+				changed = 0;
 
 			for (var i = 0; i < 10; i++) {
 				groups.push(this.getGroup(group, i))
@@ -442,11 +457,13 @@ var sudoku = (function() {
 							maybes[0].value = DIGITS[j];
 							maybes[0].updateGroup();
 							maybes[0].el.style.color = 'green';
+							changed ++;
 							yield;
 						}
 					}
 				}
 			}
+			return changed;
 		},
 
 		clear: function () {
