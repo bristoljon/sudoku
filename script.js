@@ -82,19 +82,32 @@ var sudoku = (function() {
 				sudoku.solve(iterator, true);
 				break;
 			case 'Solve':
-				var iterations = 0;
+				var iterations = 0,
+					blanks = sudoku.getBlanks();
 				console.time('Solve');
 
 				while (sudoku.getBlanks().length) {
 					iterations ++;
-					for (let n of sudoku.update()) {
+					var methods = [
+						[sudoku.update, 'something'],
+						[sudoku.search, 'box'],
+						[sudoku.search, 'x'],
+						[sudoku.search, 'y']
+					];
+
+					for (var i = 0; i < methods.length; i++) {
+						var method = methods[i],
+							iterator = method[0](method[1]),
+							startBlanks,
+							endBlanks;
+						do {
+							startBlanks = sudoku.getBlanks().length;
+							sudoku.solve(iterator, false);
+							endBlanks = sudoku.getBlanks().length
+						}
+						while (endBlanks < startBlanks)
 					}
-					for (let n of sudoku.search('box')) {
-					}
-					for (let n of sudoku.search('x')) {
-					}
-					for (let n of sudoku.search('y')) {
-					}
+
 					if (++iterations > 19) break;
 				}
 				console.timeEnd('Solve');
