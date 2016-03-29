@@ -64,35 +64,26 @@ var sudoku = (function() {
 	});
 	
 	$('.solve').click(function (e) {
-		var speed = sudoku.config.speed;
 		switch (e.target.value) {
-			case 'Simple':
-				sudoku.updater = sudoku.update();
-				window.setInterval( () => {
-					sudoku.updater.next();
-				}, speed);
+			case 'Not Search':
+				var iterator = sudoku.update();
+				sudoku.solve(iterator, true);
 				break;
 			case 'Box Search':
-				sudoku.boxSearcher = sudoku.search('box');
-				window.setInterval( () => {
-					sudoku.boxSearcher.next();
-				}, speed);
+				var iterator = sudoku.search('box');
+				sudoku.solve(iterator, true);
 				break;
 			case 'Column Search':
-				sudoku.xSearcher = sudoku.search('x');
-				window.setInterval( () => {
-					sudoku.xSearcher.next();
-				}, speed);
+				var iterator = sudoku.search('x');
+				sudoku.solve(iterator, true);
 				break;
 			case 'Row Search':
-				sudoku.ySearcher = sudoku.search('y');
-				window.setInterval( () => {
-					sudoku.ySearcher.next();
-				}, speed);
+				var iterator = sudoku.search('y');
+				sudoku.solve(iterator, true);
 				break;
 			case 'Solve':
 				var iterations = 0;
-				console.time('Solved');
+				console.time('Solve');
 
 				while (sudoku.getBlanks().length) {
 					iterations ++;
@@ -106,10 +97,15 @@ var sudoku = (function() {
 					}
 					if (++iterations > 19) break;
 				}
-				console.timeEnd('Solved');
+				console.timeEnd('Solve');
 				console.log(iterations + ' iterations');
 				if (iterations === 20) {
+					console.timeEnd('Solve');
 					console.log('Solve failed')
+				}
+				else {
+					console.timeEnd('Solve');
+					console.log(iterations + ' iterations');
 				}
 				break;
 			default:
@@ -120,7 +116,7 @@ var sudoku = (function() {
 	$('.solve').hover(function (e) {
 		var info = '';
 		switch (e.target.value) {
-			case 'Simple':
+			case 'Not Search':
 				info = "For every blank, create a list of all the digits in that cells row, column and box. If it can only be one digit, enters it.";
 				break;
 			case 'Box Search':
@@ -184,6 +180,7 @@ var sudoku = (function() {
 
 	// Arrow key event handler (bound to cell object)
 	Cell.prototype.navigate = function (event) {
+		var current = this.value;
 		switch (event.keyCode) {
 			case 37: // Left
 				if (this.x > 0) {
@@ -214,13 +211,20 @@ var sudoku = (function() {
 			case 46: // Delete key
 			case 8: // Backspace
 				// Reverse the changes made by updateGroup by passing digit to re add to maybes list
-				this.maybes.push(this.value);
-				this.updateGroup(this.value);
+				if (current !== '') {
+					this.updateGroup(current);
+				}
 				this.value = '';
 				break;
 			default:
 				var key = String.fromCharCode(event.keyCode);
+
 				if (DIGITS.has(key) && this.couldBe(key)) {
+					if (key !== current && current !== '') {
+						// Add the deleted digit to the groups' maybes lists
+						this.updateGroup(current);
+						this.maybes.push(current);
+					}
 					this.value = key;
 					this.updateGroup();
 				}
@@ -244,8 +248,7 @@ var sudoku = (function() {
 		var cells = this.getRemaining('x')
 			.concat(this.getRemaining('y'))
 			.concat(this.getRemaining('box'))
-			.removeDuplicates()
-			.getBlanks();
+			.removeDuplicates();
 
 		cells.forEach( (cell) => {
 			if (!digit) {
@@ -259,7 +262,7 @@ var sudoku = (function() {
 		console.log('show');
 		if (!this.value) {
 			$('#popover')
-			.html('Maybe: ' + this.maybes)
+			.html('Maybe: ' + this.maybes.sort())
 			.css({'top': e.pageY, 'left': e.pageX})
 			.show();
 		}
@@ -398,13 +401,11 @@ var sudoku = (function() {
 				if (blanks[i].maybes.length === 1) {
 					blanks[i].value = blanks[i].maybes[0];
 					blanks[i].el.style.color = 'pink';
-					blanks[i].maybes = [];
 					blanks[i].updateGroup();
 					yield;
 				}
-				else {
-					blanks[i].highlight('white');
-				}
+				blanks[i].highlight('white');
+
 			}
 		},
 
@@ -433,7 +434,6 @@ var sudoku = (function() {
 							blanks[k].highlight('white');
 						};
 						if (maybes.length === 1) {
-							maybes[0].maybes = [];
 							maybes[0].value = DIGITS[j];
 							maybes[0].updateGroup();
 							maybes[0].el.style.color = 'green';
@@ -463,8 +463,22 @@ var sudoku = (function() {
 				}
 			}
 		},
-		solve: function (method, visuals = true) {
-
+		solve: function (iterator, visuals = true) {
+			if (visuals) {
+				var speed = this.config.speed,
+					ref = window.setInterval( () => {
+						var state = iterator.next();
+						if (state.done) {
+							window.clearInterval(ref);
+						}
+					}, speed);
+			}
+			else {
+				while (true) {
+					var state = iterator.next();
+					if (state.done) break;
+				}
+			}
 		}
 	}
 })();
