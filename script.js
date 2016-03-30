@@ -67,17 +67,17 @@ var sudoku = (function() {
 		return ar;
 	};
 
-	
+
 	$('#clear').click(function () {
 		sudoku.clear()
 	});
 
 	$('#save').click(function () {
-		sudoku.save()
+		sudoku.save('puzzle')
 	});
 
 	$('#load').click(function () {
-		sudoku.load()
+		sudoku.load('puzzle')
 	});
 
 	$('#visualOff').click(function () {
@@ -91,7 +91,25 @@ var sudoku = (function() {
 	$('#visualFast').click(function () {
 		sudoku.config.visuals = 10
 	});
-	
+
+	$('#backStep').click(function () {
+		var last = sudoku.history.current,
+			current = last - 1;
+		if (current > -1) {
+			sudoku.load(sudoku.history, current);
+			sudoku.history.current = current
+		}
+	});
+
+	$('#forwardStep').click(function () {
+		var last = sudoku.history.current,
+			current = last + 1;
+		if (current < sudoku.history.length ) {
+			sudoku.load(sudoku.history, current);
+			sudoku.history.current = current;
+		}
+	});
+
 	$('.solve').click(function (e) {
 		switch (e.target.value) {
 			case 'Not Search':
@@ -289,6 +307,8 @@ var sudoku = (function() {
 		this.value = digit;
 		this.el.style.color = 'green';
 		this.updateGroup();
+		sudoku.history.push(sudoku.save());
+		sudoku.history.current = sudoku.history.length;
 	};
 
 	// Updates the cells in a given cells row, column and box when its value has changed
@@ -322,6 +342,7 @@ var sudoku = (function() {
 		config: {
 			visuals: 0
 		},
+		history: [],
 
 		// Generates an array of cells with x, y and box attributes and creates linked
 		init: function () {
@@ -400,7 +421,7 @@ var sudoku = (function() {
 		},
 		// Search every blank cells' row, column and box and add any values found to 'not' list
 		update: function* () {
-			var blanks = this.getBlanks().getUpdated(),
+			var blanks = this.getBlanks(),
 				changed = 0;
 			for (var i = 0; i < blanks.length; i++) {
 				var blank = blanks[i];
@@ -441,44 +462,65 @@ var sudoku = (function() {
 		},
 
 		// Solve method that checks the possible position for each digit in the group
-		search: function* (group) {
-			var self = this,
-				groups = [],
+		search: function* (type) {
+			var groups = [],
 				changed = 0;
 
-			for (var i = 0; i < 10; i++) {
-				groups.push(this.getGroup(group, i))
+			for (let i = 0; i < 10; i++) {
+				groups.push(this.getGroup(type, i))
 			}
-			for (var i = 0; i < groups.length; i++) {
+			for (let i = 0; i < groups.length; i++) {
 				let group = groups[i];
 				for (var j = 0; j < DIGITS.length; j++) {
 					let digit = DIGITS[j];
 					if (!group.has(digit)) {
-						var blanks = self.getBlanks(group),
+						var blanks = this.getBlanks(group),
 							maybes = [];
 						for (var k = 0; k < blanks.length; k++) {
-							blanks[k].el.value = digit;
-							if (blanks[k].couldBe(digit)) {
-								blanks[k].highlight('green');
-								maybes.push(blanks[k])
-
+							let blank = blanks[k];
+							blank.el.value = digit;
+							if (blank.couldBe(digit)) {
+								blank.highlight('green');
+								maybes.push(blank)
 							}
 							else {
-								blanks[k].highlight('red');
+								blank.highlight('red');
 							}
 							yield;
-							blanks[k].el.value = '';
-							blanks[k].highlight('white');
+							blank.el.value = '';
+							blank.highlight('white');
+							//blank.updated = false;
 						};
 						if (maybes.length === 1) {
 							maybes[0].is(digit);
 							changed ++;
 							yield;
 						}
+						else if (maybes.length === 2 && type === 'box') {
+							sudoku.paircheck(maybes, digit);
+						}
 					}
 				}
 			}
 			return changed;
+		},
+
+		// If box search determines a digit can only be in 2 cells, this method checks if those
+		// cells are in the same row or column and updates the rest of the row accordingly
+		paircheck: function (maybes, digit) {
+			var groups = [],
+				changed = 0;
+			['x','y'].forEach( (group) => {
+				if (maybes[0][group] === maybes[1][group]) {
+					let others = maybes[0].getRemaining([group]);
+					for (let i = 0; i < others.length; i++) {
+						let other = others[i];
+						if (other.id !== maybes[1].id) {
+							other.cantBe(digit)
+						}
+					}
+				}
+			})
 		},
 
 		clear: function () {
@@ -491,26 +533,34 @@ var sudoku = (function() {
 			})
 		},
 
-		save: function () {
+		// Saves current state under name if provided or returns state as JSON for history
+		save: function (name) {
 			// Remove el property before storing as causes circular structure error
 			var cells = this.cells.map( (cell) => {
 				var save = {};
 				save.value = cell.value;
 				save.maybes = cell.maybes;
+				save.updated = cell.updated;
 				return save;
 			});
-			localStorage.setItem('puzzle', JSON.stringify(cells));
+			if (name) localStorage.setItem(name, JSON.stringify(cells));
+			else return JSON.stringify(cells)
 		},
 
-		load: function () {
+		load: function (store, step) {
 			this.clear();
-			var cells = JSON.parse(localStorage.getItem('puzzle'));
+			var cells;
+			if (typeof store !== 'string') {
+				cells = JSON.parse(store[step])
+			}
+			else cells = JSON.parse(localStorage.getItem(store));
 			for (var i = 0; i < cells.length; i++) {
 				for (var prop in cells[i]) {
 					this.cells[i][prop] = cells[i][prop]
 				}
 			}
 		},
+
 		solve: function (iterator) {
 			var speed = this.config.visuals;
 			if (speed) {

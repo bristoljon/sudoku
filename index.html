@@ -35,6 +35,10 @@
 		box-sizing: border-box;
     	float:left;
     }
+
+	.controls {
+		margin:5px;
+	}
     
     .box {
 		border: 1px blue solid;
@@ -85,7 +89,7 @@
 			</label>
 		</div>
 	</div>
-
+	<div id="popover"></div>
 	<div class="puzzle">
 		<div class='box' id="0"></div>
 		<div class='box' id="1"></div>
@@ -103,9 +107,15 @@
 		<input type="button" class="btn btn-success solve" value="Column Search"/>
 		<input type="button" class="btn btn-success solve" value="Row Search"/>
 		<input type="button" class="btn btn-success solve" value="Solve"/>
-
 	</div>
-	<div id="popover"></div>
+	<div class="history">
+		<button type="button" class="btn btn-default" aria-label="Left Align">
+			<span id="backStep" class="glyphicon glyphicon-step-backward" aria-hidden="true"></span>
+		</button>
+		<button type="button" class="btn btn-default" aria-label="Left Align">
+			<span id="forwardStep" class="glyphicon glyphicon-step-forward" aria-hidden="true"></span>
+		</button>
+	</div>
 	<div id="instructions">
 		<h4>Instructions</h4>
 		<p>Enter digits in the grid; you can use arrow keys on keyboard or click / touch.</p>
