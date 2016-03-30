@@ -58,6 +58,15 @@ var sudoku = (function() {
 		return ar;
 	};
 
+	// Returns the cells that are flagged as updated i.e. when their maybes list has changed
+	Array.prototype.getUpdated = function () {
+		var ar = [];
+		for (var i =0; i < this.length; i++) {
+			if (this[i].updated === true) ar.push(this[i])
+		}
+		return ar;
+	};
+
 	
 	$('#clear').click(function () {
 		sudoku.clear()
@@ -263,6 +272,25 @@ var sudoku = (function() {
 		return false
 	};
 
+	// Removes passed digit from maybes list and flags as updated
+	Cell.prototype.cantBe = function (digit)  {
+		this.maybes.remove(digit);
+		this.updated = true;
+	};
+
+	// Adds digit to maybes list and flags as updated
+	Cell.prototype.canBe = function (digit)  {
+		this.maybes.push(digit);
+		this.updated = true;
+	};
+
+	// Sets the cell value and updates its groups
+	Cell.prototype.is = function (digit) {
+		this.value = digit;
+		this.el.style.color = 'green';
+		this.updateGroup();
+	};
+
 	// Updates the cells in a given cells row, column and box when its value has changed
 	// Digit parameter is only used when user deletes a digit so the group can re-add it
 	Cell.prototype.updateGroup = function (digit) {
@@ -273,16 +301,15 @@ var sudoku = (function() {
 
 		cells.forEach( (cell) => {
 			if (!digit) {
-				cell.maybes.remove(this.value);
+				cell.cantBe(this.value);
 			}
-			else cell.maybes.push(digit);
+			else cell.canBe(digit);
 		})
 	};
 
 	Cell.prototype.showPopover = function (e) {
 		$('#popover')
 		.html('Maybe: ' + this.maybes.sort())
-		//.css({'top': e.pageY, 'left': e.pageX})
 		.show();
 	};
 
@@ -298,8 +325,6 @@ var sudoku = (function() {
 
 		// Generates an array of cells with x, y and box attributes and creates linked
 		init: function () {
-			$('#popover').hide();
-			$('#tooltip').hide();
 
 			for (var y=0; y<9; y++ ) {
 				for (var x=0; x<9; x++ ) {
@@ -375,41 +400,42 @@ var sudoku = (function() {
 		},
 		// Search every blank cells' row, column and box and add any values found to 'not' list
 		update: function* () {
-			var blanks = this.getBlanks(),
+			var blanks = this.getBlanks().getUpdated(),
 				changed = 0;
 			for (var i = 0; i < blanks.length; i++) {
-				blanks[i].highlight('pink');
+				var blank = blanks[i];
+				blank.highlight('pink');
 				yield;
 
-				var cells = blanks[i].getRemaining('x')
-						.concat(blanks[i].getRemaining('y'))
-						.concat(blanks[i].getRemaining('box'))
+				var cells = blank.getRemaining('x')
+						.concat(blank.getRemaining('y'))
+						.concat(blank.getRemaining('box'))
 						.removeDuplicates()
 						.removeBlanks();
 
 				// Remove any values found in that cells' groups from it's maybes list
 				for (var j = 0; j < cells.length; j++) {
-					var digit = cells[j].value;
-					cells[j].highlight('orange');
+					var cell = cells[j],
+						digit = cell.value;
+					cell.highlight('orange');
 					yield;
 
 					if (digit !== '') {
-						cells[j].highlight('green');
-						blanks[i].maybes.remove(digit);
-						blanks[i].highlight('green');
+						cell.highlight('green');
+						blank.cantBe(digit);
+						blank.highlight('green');
 						yield;
 					}
-					cells[j].highlight('white');
+					cell.highlight('white');
 				}
 				// Sets value to digit in maybes list if only one remains
-				if (blanks[i].maybes.length === 1) {
-					blanks[i].value = blanks[i].maybes[0];
-					blanks[i].el.style.color = 'green';
-					blanks[i].updateGroup();
+				if (blank.maybes.length === 1) {
+					blank.is(blank.maybes[0]);
 					changed++;
 					yield;
 				}
-				blanks[i].highlight('white');
+				blank.highlight('white');
+				blank.updated = false;
 			}
 			return changed;
 		},
@@ -424,13 +450,15 @@ var sudoku = (function() {
 				groups.push(this.getGroup(group, i))
 			}
 			for (var i = 0; i < groups.length; i++) {
+				let group = groups[i];
 				for (var j = 0; j < DIGITS.length; j++) {
-					if (!groups[i].has(DIGITS[j])) {
-						var blanks = self.getBlanks(groups[i]),
+					let digit = DIGITS[j];
+					if (!group.has(digit)) {
+						var blanks = self.getBlanks(group),
 							maybes = [];
 						for (var k = 0; k < blanks.length; k++) {
-							blanks[k].el.value = DIGITS[j];
-							if (blanks[k].couldBe(DIGITS[j])) {
+							blanks[k].el.value = digit;
+							if (blanks[k].couldBe(digit)) {
 								blanks[k].highlight('green');
 								maybes.push(blanks[k])
 
@@ -443,9 +471,7 @@ var sudoku = (function() {
 							blanks[k].highlight('white');
 						};
 						if (maybes.length === 1) {
-							maybes[0].value = DIGITS[j];
-							maybes[0].updateGroup();
-							maybes[0].el.style.color = 'green';
+							maybes[0].is(digit);
 							changed ++;
 							yield;
 						}
