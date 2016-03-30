@@ -50,6 +50,14 @@ var sudoku = (function() {
 		return ar;
 	};
 
+	Array.prototype.removeBlanks = function () {
+		var ar = [];
+		for (var i =0; i < this.length; i++) {
+			if (this[i].value !== '') ar.push(this[i])
+		}
+		return ar;
+	};
+
 	
 	$('#clear').click(function () {
 		sudoku.clear()
@@ -190,9 +198,9 @@ var sudoku = (function() {
 		return ar;
 	};
 
-	// Arrow key event handler (bound to cell object)
+	// Key press event handler (bound to cell object)
 	Cell.prototype.navigate = function (event) {
-		event.preventDefault();
+		//event.preventDefault();
 		var current = this.value;
 		switch (event.keyCode) {
 			case 37: // Left
@@ -285,7 +293,7 @@ var sudoku = (function() {
 	return {
 		cells: [],
 		config: {
-			visuals: 10
+			visuals: 0
 		},
 
 		// Generates an array of cells with x, y and box attributes and creates linked
@@ -312,7 +320,7 @@ var sudoku = (function() {
 						else cell.box = 8;
 					}
 					cell.el = document.createElement('input');
-					cell.el.setAttribute('type','number');
+					cell.el.setAttribute('type','text');
 					cell.el.setAttribute('class', 'cell');
 					cell.el.setAttribute('maxlength','1');
 					var box = document.getElementById(cell.box);
@@ -320,6 +328,9 @@ var sudoku = (function() {
 
 					cell.el.addEventListener('keyup', cell.navigate.bind(cell));
 					cell.el.addEventListener('keydown', (e) => {
+						e.preventDefault();
+					});
+					cell.el.addEventListener('keypress', (e) => {
 						e.preventDefault();
 					});
 					cell.el.addEventListener('click', cell.showPopover.bind(cell));
@@ -374,7 +385,7 @@ var sudoku = (function() {
 						.concat(blanks[i].getRemaining('y'))
 						.concat(blanks[i].getRemaining('box'))
 						.removeDuplicates()
-						.getBlanks();
+						.removeBlanks();
 
 				// Remove any values found in that cells' groups from it's maybes list
 				for (var j = 0; j < cells.length; j++) {
@@ -478,11 +489,11 @@ var sudoku = (function() {
 			var speed = this.config.visuals;
 			if (speed) {
 				var ref = window.setInterval( () => {
-						var state = iterator.next();
-						if (state.done) {
-							window.clearInterval(ref);
-						}
-					}, speed);
+					var state = iterator.next();
+					if (state.done) {
+						window.clearInterval(ref);
+					}
+				}, speed);
 			}
 			else {
 				while (true) {
