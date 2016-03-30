@@ -36,8 +36,8 @@
     	float:left;
     }
 
-	.controls {
-		margin:5px;
+	.controls *{
+		margin:2px;
 	}
     
     .box {
@@ -58,6 +58,14 @@
 		padding: 5px;
 		margin-top: 10px;
 		background-color: white;
+	}
+
+	#instructions {
+		padding:20px;
+	}
+
+	#instructions *{
+		text-align: left;
 	}
 
 	input::-webkit-outer-spin-button,
@@ -81,11 +89,11 @@
 			<label class="btn btn-primary" id="visualSlow">
 				<input type="radio" name="options">Slow
 			</label>
-			<label class="btn btn-primary" id="visualFast">
-				<input type="radio" name="options">Fast
+			<label class="btn btn-primary active" id="visualFast">
+				<input type="radio" name="options" checked>Fast
 			</label>
-			<label class="btn btn-primary active" id="visualOff" >
-				<input type="radio" name="options" checked>Ultra
+			<label class="btn btn-primary" id="visualOff" >
+				<input type="radio" name="options">Ultra
 			</label>
 		</div>
 	</div>
@@ -122,13 +130,16 @@
 		<p>Hover over (or touch on mobile) any cell to view the digits it could be. This updates automatically whenever a cell changes.</p>
 		<p>Use 'Save' to store the current puzzle state so you can return to the beginning if you want.</p>
 		<p>Use a combination of different search methods to solve the puzzle. You should wait till one search has finished before doing the next. Although it will let you trigger multiple searches at once and it looks cool, it will probably fail to solve..</p>
-		<ul>
-			<li>Not Search - For every blank, create a list of all the digits in that cells row, column and box. If it can only be one digit, enters it.</li>
-			<li>Box Search - For each box, create list of cells where each digit could go. If only one place, enter it</li>
-			<li>Column Search - For each column, create list of cells where each digit could go. If only one place, enter it.</li>
-			<li>Row Search - For each row, create list of cells where each digit could go. If only one place, enter it.</li>
-			<li>Solve - Simple, Box, Column and Row search until no blanks remain or maximum iterations reached</li>
-		</ul>
+		<p>
+			<ul>
+				<li><strong>Not Search</strong> - For every blank that has changed state, remove all the digits in that cells row, column and box from it's 'maybes' list. If only one remains, enter it.</li>
+				<li><strong>Box Search</strong> - For each box, create list of cells where each digit could go. If only one place, enter it. If only 2 places, and they are on the same row or column, update the rest of the group's maybes lists</li>
+				<li><strong>Column Search</strong> - For each column, create list of cells where each digit could go. If only one place, enter it.</li>
+				<li><strong>Row Search</strong> - For each row, create list of cells where each digit could go. If only one place, enter it.</li>
+				<li><strong>Solve</strong> - Not, Box, Column and Row search until no blanks remain or maximum iterations reached. Only runs in 'Ultra' speed</li>
+			</ul>
+		</p>
+		<p>Use the arrow keys to scroll backwards and forward digit by digit</p>
 	</div>
 
 	<script type="text/javascript" src="http://code.jquery.com/jquery-latest.min.js"></script>

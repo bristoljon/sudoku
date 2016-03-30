@@ -93,21 +93,11 @@ var sudoku = (function() {
 	});
 
 	$('#backStep').click(function () {
-		var last = sudoku.history.current,
-			current = last - 1;
-		if (current > -1) {
-			sudoku.load(sudoku.history, current);
-			sudoku.history.current = current
-		}
+		sudoku.step('back')
 	});
 
 	$('#forwardStep').click(function () {
-		var last = sudoku.history.current,
-			current = last + 1;
-		if (current < sudoku.history.length ) {
-			sudoku.load(sudoku.history, current);
-			sudoku.history.current = current;
-		}
+		sudoku.step('forward')
 	});
 
 	$('.solve').click(function (e) {
@@ -307,8 +297,7 @@ var sudoku = (function() {
 		this.value = digit;
 		this.el.style.color = 'green';
 		this.updateGroup();
-		sudoku.history.push(sudoku.save());
-		sudoku.history.current = sudoku.history.length;
+		sudoku.savestep();
 	};
 
 	// Updates the cells in a given cells row, column and box when its value has changed
@@ -340,7 +329,7 @@ var sudoku = (function() {
 	return {
 		cells: [],
 		config: {
-			visuals: 0
+			visuals: 10
 		},
 		history: [],
 
@@ -421,7 +410,7 @@ var sudoku = (function() {
 		},
 		// Search every blank cells' row, column and box and add any values found to 'not' list
 		update: function* () {
-			var blanks = this.getBlanks(),
+			var blanks = this.getBlanks().getUpdated(),
 				changed = 0;
 			for (var i = 0; i < blanks.length; i++) {
 				var blank = blanks[i];
@@ -489,7 +478,7 @@ var sudoku = (function() {
 							yield;
 							blank.el.value = '';
 							blank.highlight('white');
-							//blank.updated = false;
+
 						};
 						if (maybes.length === 1) {
 							maybes[0].is(digit);
@@ -508,8 +497,7 @@ var sudoku = (function() {
 		// If box search determines a digit can only be in 2 cells, this method checks if those
 		// cells are in the same row or column and updates the rest of the row accordingly
 		paircheck: function (maybes, digit) {
-			var groups = [],
-				changed = 0;
+
 			['x','y'].forEach( (group) => {
 				if (maybes[0][group] === maybes[1][group]) {
 					let others = maybes[0].getRemaining([group]);
@@ -523,8 +511,32 @@ var sudoku = (function() {
 			})
 		},
 
+		savestep: function () {
+			this.history.push(sudoku.save());
+			this.history.current = this.history.length - 1;
+		},
+
+		step: function (direction) {
+			var current = this.history.current;
+			switch (direction) {
+				case 'back':
+					if (current > 0) {
+						this.load(this.history, current -1);
+						this.history.current = current -1
+					}
+					break;
+				case 'forward':
+					if (current < this.history.length - 1) {
+						this.load(this.history, current + 1);
+						this.history.current = current + 1
+					}
+					break;
+			}
+		},
+
 		clear: function () {
 			sudoku.$cells.val('');
+			//sudoku.history = [];
 			this.cells.forEach(function (cell) {
 				cell.value = '';
 				cell.maybes = ['1','2','3','4','5','6','7','8','9'];
@@ -559,6 +571,7 @@ var sudoku = (function() {
 					this.cells[i][prop] = cells[i][prop]
 				}
 			}
+			this.savestep()
 		},
 
 		solve: function (iterator) {
@@ -583,5 +596,7 @@ var sudoku = (function() {
 
 sudoku.init();
 
+localStorage.setItem('puzzle', '[{"value":"4","maybes":["3","4","9"],"updated":true},{"value":"","maybes":["3","9"],"updated":true},{"value":"","maybes":["5"],"updated":true},{"value":"8","maybes":["3","5","8","9"],"updated":true},{"value":"2","maybes":["2","3","5","6","9"],"updated":true},{"value":"7","maybes":["3","5","6","7","9"],"updated":true},{"value":"","maybes":["5","6","9"],"updated":true},{"value":"","maybes":["1","5","6"],"updated":true},{"value":"","maybes":["1","6","9"],"updated":true},{"value":"1","maybes":["1","3","7","8","9"],"updated":true},{"value":"","maybes":["3","7","8","9"],"updated":true},{"value":"","maybes":["5","7"],"updated":true},{"value":"","maybes":["3","5","9"],"updated":true},{"value":"","maybes":["3","5","6","9"],"updated":true},{"value":"","maybes":["3","5","6","9"],"updated":true},{"value":"2","maybes":["2","4","5","6","7","9"],"updated":true},{"value":"","maybes":["4","5","6","7"],"updated":true},{"value":"","maybes":["4","6","7","9"],"updated":true},{"value":"","maybes":["2","7","9"],"updated":true},{"value":"6","maybes":["2","6","7","9"],"updated":true},{"value":"","maybes":["2","5","7"],"updated":true},{"value":"4","maybes":["4","5","9"],"updated":true},{"value":"","maybes":["5","9"],"updated":true},{"value":"1","maybes":["1","5","9"],"updated":true},{"value":"3","maybes":["3","5","7","9"],"updated":true},{"value":"8","maybes":["5","7","8"],"updated":true},{"value":"","maybes":["7","9"],"updated":true},{"value":"5","maybes":["2","5","6","7","8","9"],"updated":true},{"value":"1","maybes":["1","2","4","7","8","9"],"updated":true},{"value":"3","maybes":["2","3","4","6","7"],"updated":true},{"value":"","maybes":["2","9"],"updated":true},{"value":"","maybes":["4","6","7","9"],"updated":true},{"value":"","maybes":["6","8","9"],"updated":true},{"value":"","maybes":["4","6","7","8"],"updated":true},{"value":"","maybes":["2","4","6","7"],"updated":true},{"value":"","maybes":["4","6","7","8"],"updated":true},{"value":"","maybes":["2","6","7","8","9"],"updated":true},{"value":"","maybes":["2","4","7","8","9"],"updated":true},{"value":"","maybes":["2","4","6","7"],"updated":true},{"value":"","maybes":["1","2","3","5","9"],"updated":true},{"value":"","maybes":["1","3","4","5","6","7","9"],"updated":true},{"value":"","maybes":["3","5","6","8","9"],"updated":true},{"value":"","maybes":["4","5","6","7","8"],"updated":true},{"value":"","maybes":["2","4","5","6","7"],"updated":true},{"value":"","maybes":["4","6","7","8"],"updated":true},{"value":"","maybes":["2","6","7","8"],"updated":true},{"value":"","maybes":["2","4","7","8"],"updated":true},{"value":"","maybes":["2","4","6","7"],"updated":true},{"value":"","maybes":["2","5"],"updated":true},{"value":"","maybes":["4","5","6","7"],"updated":true},{"value":"","maybes":["5","6","8"],"updated":true},{"value":"1","maybes":["1","4","5","6","7","8"],"updated":true},{"value":"9","maybes":["2","4","5","6","7","9"],"updated":true},{"value":"3","maybes":["3","4","6","7","8"],"updated":true},{"value":"","maybes":["7"],"updated":true},{"value":"5","maybes":["4","5","7"],"updated":true},{"value":"8","maybes":["1","4","7","8"],"updated":true},{"value":"6","maybes":["1","6","9"],"updated":true},{"value":"","maybes":["1","9"],"updated":true},{"value":"2","maybes":["2","9"],"updated":true},{"value":"","maybes":["4","7","9"],"updated":true},{"value":"3","maybes":["1","3","4","7"],"updated":true},{"value":"","maybes":["1","4","7","9"],"updated":true},{"value":"","maybes":["3","6","7"],"updated":true},{"value":"","maybes":["3","4","7"],"updated":true},{"value":"9","maybes":["1","4","6","7","9"],"updated":true},{"value":"","maybes":["1","3","5"],"updated":true},{"value":"","maybes":["1","3","5"],"updated":true},{"value":"","maybes":["3","5"],"updated":true},{"value":"","maybes":["4","6","7","8"],"updated":true},{"value":"","maybes":["1","4","6","7"],"updated":true},{"value":"2","maybes":["1","2","4","6","7","8"],"updated":true},{"value":"","maybes":["2","3","6"],"updated":true},{"value":"","maybes":["2","3"],"updated":true},{"value":"","maybes":["1","2","6"],"updated":true},{"value":"7","maybes":["1","3","7","9"],"updated":true},{"value":"8","maybes":["1","3","8","9"],"updated":true},{"value":"4","maybes":["3","4","9"],"updated":true},{"value":"","maybes":["6","9"],"updated":true},{"value":"","maybes":["1","6"],"updated":true},{"value":"5","maybes":["1","5","6","9"],"updated":true}]')
+sudoku.load('puzzle');
 
 
