@@ -129,14 +129,14 @@
 		<p>Enter digits in the grid; you can use arrow keys on keyboard or click / touch.</p>
 		<p>Hover over (or touch on mobile) any cell to view the digits it could be. This updates automatically whenever a cell changes.</p>
 		<p>Use 'Save' to store the current puzzle state so you can return to the beginning if you want.</p>
-		<p>Use a combination of different search methods to solve the puzzle. You should wait till one search has finished before doing the next. Although it will let you trigger multiple searches at once and it looks cool, it will probably fail to solve..</p>
+		<p>Use a combination of different search methods to solve the puzzle. You should <strong>wait till one search has finished before doing the next</strong>. Although it will let you trigger multiple searches at once and it looks cool, it will probably fail to solve..</p>
 		<p>
 			<ul>
 				<li><strong>Not Search</strong> - For every blank that has changed state, remove all the digits in that cells row, column and box from it's 'maybes' list. If only one remains, enter it.</li>
 				<li><strong>Box Search</strong> - For each box, create list of cells where each digit could go. If only one place, enter it. If only 2 places, and they are on the same row or column, update the rest of the group's maybes lists</li>
 				<li><strong>Column Search</strong> - For each column, create list of cells where each digit could go. If only one place, enter it.</li>
 				<li><strong>Row Search</strong> - For each row, create list of cells where each digit could go. If only one place, enter it.</li>
-				<li><strong>Solve</strong> - Not, Box, Column and Row search until no blanks remain or maximum iterations reached. Only runs in 'Ultra' speed</li>
+				<li><strong>Solve</strong> - Not, Box, Column and Row search until no blanks remain or maximum iterations reached. Now runs with visuals on thanks to async promises.</li>
 			</ul>
 		</p>
 		<p>Use the arrow keys to scroll backwards and forward digit by digit</p>

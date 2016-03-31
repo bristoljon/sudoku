@@ -104,16 +104,20 @@ var sudoku = (function() {
 		$('.solve').prop("disabled",true);
 		switch (e.target.value) {
 			case 'Not Search':
-				sudoku.solve(sudoku.update.bind(sudoku), false);
+				sudoku.solve(sudoku.update.bind(sudoku), false)
+					.then( () => { $('.solve').prop("disabled",false); });
 				break;
 			case 'Box Search':
-				sudoku.solve(sudoku.search.bind(sudoku), false, 'box');
+				sudoku.solve(sudoku.search.bind(sudoku), false, 'box')
+					.then( () => { $('.solve').prop("disabled",false); });
 				break;
 			case 'Column Search':
-				sudoku.solve(sudoku.search.bind(sudoku), false, 'x');
+				sudoku.solve(sudoku.search.bind(sudoku), false, 'x')
+					.then( () => { $('.solve').prop("disabled",false); });
 				break;
 			case 'Row Search':
-				sudoku.solve(sudoku.search.bind(sudoku), false, 'y');
+				sudoku.solve(sudoku.search.bind(sudoku), false, 'y')
+					.then( () => { $('.solve').prop("disabled",false); });
 				break;
 			case 'Solve':
 				console.time('Solve');
@@ -128,6 +132,7 @@ var sudoku = (function() {
 						if (blanks) sudoku.solve(sudoku.search.bind(sudoku), true, 'y');
 					})
 					.then( (blanks) => {
+						$('.solve').prop("disabled",false);
 						if (blanks) {
 							console.timeEnd('Solve');
 							console.log('Solve failed');
@@ -138,7 +143,6 @@ var sudoku = (function() {
 							console.log('Solve succeeded');
 							console.log(blanks)
 						}
-						$('.solve').prop("disabled",false);
 					});
 				break;
 			default:
@@ -567,7 +571,7 @@ var sudoku = (function() {
 			return new Promise(function (resolve, reject) {
 				if (visuals && !repeat) {
 					self.solveAsync(method, args[0])
-						.then( blanks => { resolve(blanks) })
+						.then( () => {}, blanks => { resolve(blanks) })
 				}
 				else if (visuals && repeat) {
 					let loop = () => {
