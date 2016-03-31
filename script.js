@@ -511,24 +511,30 @@ var sudoku = (function() {
 			})
 		},
 
+		// Called every time a value is found. If current step is less than history length,
+		// it deletes the remaining history and adds from that point.
 		savestep: function () {
+			if (this.history.current < this.history.length - 1) {
+				this.history.length = this.history.current + 1
+			}
 			this.history.push(sudoku.save());
 			this.history.current = this.history.length - 1;
 		},
 
+		// Arrow key event handler, lots of room for out by 1 hell but works ok
 		step: function (direction) {
 			var current = this.history.current;
 			switch (direction) {
 				case 'back':
 					if (current > 0) {
-						this.load(this.history, current -1);
-						this.history.current = current -1
+						this.history.current = current -1;
+						this.load('history', this.history.current);
 					}
 					break;
 				case 'forward':
 					if (current < this.history.length - 1) {
-						this.load(this.history, current + 1);
-						this.history.current = current + 1
+						this.history.current = current + 1;
+						this.load('history', this.history.current);
 					}
 					break;
 			}
@@ -536,7 +542,6 @@ var sudoku = (function() {
 
 		clear: function () {
 			sudoku.$cells.val('');
-			//sudoku.history = [];
 			this.cells.forEach(function (cell) {
 				cell.value = '';
 				cell.maybes = ['1','2','3','4','5','6','7','8','9'];
@@ -545,7 +550,7 @@ var sudoku = (function() {
 			})
 		},
 
-		// Saves current state under name if provided or returns state as JSON for history
+		// Saves current state under name if provided or returns state as JSON for use by savestep()
 		save: function (name) {
 			// Remove el property before storing as causes circular structure error
 			var cells = this.cells.map( (cell) => {
@@ -559,19 +564,28 @@ var sudoku = (function() {
 			else return JSON.stringify(cells)
 		},
 
+		// If store is 'history', i.e. when called by step(), load JSON from history array
+		// Otherwise load from localstorage and reset history array
 		load: function (store, step) {
 			this.clear();
 			var cells;
-			if (typeof store !== 'string') {
-				cells = JSON.parse(store[step])
+			// If loading step from history store will be history array
+			if (store === 'history') {
+				cells = JSON.parse(this.history[step])
 			}
-			else cells = JSON.parse(localStorage.getItem(store));
+			else {
+				cells = JSON.parse(localStorage.getItem(store));
+			}
 			for (var i = 0; i < cells.length; i++) {
 				for (var prop in cells[i]) {
 					this.cells[i][prop] = cells[i][prop]
 				}
 			}
-			this.savestep()
+			// If loaded from storage reset history and save first step
+			if (store !== 'history') {
+				sudoku.history = [];
+				sudoku.savestep()
+			}
 		},
 
 		solve: function (iterator) {
