@@ -101,79 +101,49 @@ var sudoku = (function() {
 	});
 
 	$('.solve').click(function (e) {
+		$('.solve').prop("disabled",true);
 		switch (e.target.value) {
 			case 'Not Search':
-				var iterator = sudoku.update();
-				sudoku.solve(iterator);
+				sudoku.solve(sudoku.update.bind(sudoku), false);
 				break;
 			case 'Box Search':
-				var iterator = sudoku.search('box');
-				sudoku.solve(iterator);
+				sudoku.solve(sudoku.search.bind(sudoku), false, 'box');
 				break;
 			case 'Column Search':
-				var iterator = sudoku.search('x');
-				sudoku.solve(iterator);
+				sudoku.solve(sudoku.search.bind(sudoku), false, 'x');
 				break;
 			case 'Row Search':
-				var iterator = sudoku.search('y');
-				sudoku.solve(iterator);
+				sudoku.solve(sudoku.search.bind(sudoku), false, 'y');
 				break;
 			case 'Solve':
-				var iterations = 0,
-					blanks = sudoku.getBlanks();
 				console.time('Solve');
-
-				while (sudoku.getBlanks().length) {
-					iterations ++;
-					let startBlanks,
-						endBlanks;
-
-					sudoku.config.visuals = 0;
-
-					// This code should be more DRY..
-					do {
-						startBlanks = sudoku.getBlanks().length;
-						sudoku.solve(sudoku.update());
-						endBlanks = sudoku.getBlanks().length
-					}
-					while (endBlanks < startBlanks);
-
-					do {
-						startBlanks = sudoku.getBlanks().length;
-						sudoku.solve(sudoku.search('box'));
-						endBlanks = sudoku.getBlanks().length
-					}
-					while (endBlanks < startBlanks);
-
-					do {
-						startBlanks = sudoku.getBlanks().length;
-						sudoku.solve(sudoku.search('x'));
-						endBlanks = sudoku.getBlanks().length
-					}
-					while (endBlanks < startBlanks);
-
-					do {
-						startBlanks = sudoku.getBlanks().length;
-						sudoku.solve(sudoku.search('y'));
-						endBlanks = sudoku.getBlanks().length
-					}
-					while (endBlanks < startBlanks);
-
-					if (++iterations > 19) break;
-				}
-				console.timeEnd('Solve');
-				console.log(iterations + ' iterations');
-				if (iterations === 20) {
-					console.timeEnd('Solve');
-					console.log('Solve failed')
-				}
-				else {
-					console.timeEnd('Solve');
-					console.log(iterations + ' iterations');
-				}
+				sudoku.solve(sudoku.update.bind(sudoku), true)
+					.then( (blanks) => {
+						if (blanks) sudoku.solve(sudoku.search.bind(sudoku), true, 'box');
+					})
+					.then( (blanks) => {
+						if (blanks) sudoku.solve(sudoku.search.bind(sudoku), true, 'x');
+					})
+					.then( (blanks) => {
+						if (blanks) sudoku.solve(sudoku.search.bind(sudoku), true, 'y');
+					})
+					.then( (blanks) => {
+						if (blanks) {
+							console.timeEnd('Solve');
+							console.log('Solve failed');
+							console.log(blanks)
+						}
+						else {
+							console.timeEnd('Solve');
+							console.log('Solve succeeded');
+							console.log(blanks)
+						}
+						$('.solve').prop("disabled",false);
+					});
 				break;
 			default:
 				console.log('No handler found')
+				break;
 		}
 	});
 	
@@ -588,22 +558,78 @@ var sudoku = (function() {
 			}
 		},
 
-		solve: function (iterator) {
-			var speed = this.config.visuals;
-			if (speed) {
-				var ref = window.setInterval( () => {
+		// Takes a generator method (bound to sudoku object), creates an iterator.
+		// Returns a promise resolved when iterator is done or, if repeat flag is
+		// set - self invokes until no further values are found.
+		solve: function (method, repeat, ...args) {
+			var self = this,
+				visuals = this.config.visuals;
+			return new Promise(function (resolve, reject) {
+				if (visuals && !repeat) {
+					self.solveAsync(method, args[0])
+						.then( blanks => { resolve(blanks) })
+				}
+				else if (visuals && repeat) {
+					let loop = () => {
+						self.solveAsync(method, args[0])
+							.then((blanks) => {
+								resolve(blanks)
+							}, () => {
+								loop()
+							})
+					};
+					loop()
+				}
+				else if (!visuals && repeat) {
+					let loops = 0;
+					while (self.solveSync(method, args[0])) {
+						loops++
+					}
+					resolve(self.cells.getBlanks().length)
+				}
+				else if (!visuals && !repeat) {
+					self.solveSync(method, args[0]);
+					resolve(self.cells.getBlanks().length)
+				}
+				else console.log('you slipped through the net')
+			});
+		},
+
+		// Rejects promise if last run found values, otherwise resolves
+		solveAsync: function (method,...args) {
+			var self = this,
+				speed = this.config.visuals,
+				iterator = method(args[0]),
+				start = this.cells.getBlanks().length;
+			return new Promise(function (resolve, reject) {
+				var ref = window.setInterval(() => {
 					var state = iterator.next();
 					if (state.done) {
 						window.clearInterval(ref);
+						let end = self.cells.getBlanks().length,
+							found = start - end;
+						if (found) {
+							reject(end)
+						}
+						else resolve(end)
 					}
 				}, speed);
+			});
+		},
+
+		// Synchronous / blocking iterator method, returns number of values
+		// found
+		solveSync: function (method,...args) {
+			var self = this,
+				iterator = method(args[0]),
+				start = this.cells.getBlanks().length;
+
+			while (true) {
+				var state = iterator.next();
+				if (state.done) break;
 			}
-			else {
-				while (true) {
-					var state = iterator.next();
-					if (state.done) break;
-				}
-			}
+			let end = self.cells.getBlanks().length;
+			return start - end;
 		}
 	}
 })();
@@ -613,4 +639,26 @@ sudoku.init();
 localStorage.setItem('puzzle', '[{"value":"4","maybes":["3","4","9"],"updated":true},{"value":"","maybes":["3","9"],"updated":true},{"value":"","maybes":["5"],"updated":true},{"value":"8","maybes":["3","5","8","9"],"updated":true},{"value":"2","maybes":["2","3","5","6","9"],"updated":true},{"value":"7","maybes":["3","5","6","7","9"],"updated":true},{"value":"","maybes":["5","6","9"],"updated":true},{"value":"","maybes":["1","5","6"],"updated":true},{"value":"","maybes":["1","6","9"],"updated":true},{"value":"1","maybes":["1","3","7","8","9"],"updated":true},{"value":"","maybes":["3","7","8","9"],"updated":true},{"value":"","maybes":["5","7"],"updated":true},{"value":"","maybes":["3","5","9"],"updated":true},{"value":"","maybes":["3","5","6","9"],"updated":true},{"value":"","maybes":["3","5","6","9"],"updated":true},{"value":"2","maybes":["2","4","5","6","7","9"],"updated":true},{"value":"","maybes":["4","5","6","7"],"updated":true},{"value":"","maybes":["4","6","7","9"],"updated":true},{"value":"","maybes":["2","7","9"],"updated":true},{"value":"6","maybes":["2","6","7","9"],"updated":true},{"value":"","maybes":["2","5","7"],"updated":true},{"value":"4","maybes":["4","5","9"],"updated":true},{"value":"","maybes":["5","9"],"updated":true},{"value":"1","maybes":["1","5","9"],"updated":true},{"value":"3","maybes":["3","5","7","9"],"updated":true},{"value":"8","maybes":["5","7","8"],"updated":true},{"value":"","maybes":["7","9"],"updated":true},{"value":"5","maybes":["2","5","6","7","8","9"],"updated":true},{"value":"1","maybes":["1","2","4","7","8","9"],"updated":true},{"value":"3","maybes":["2","3","4","6","7"],"updated":true},{"value":"","maybes":["2","9"],"updated":true},{"value":"","maybes":["4","6","7","9"],"updated":true},{"value":"","maybes":["6","8","9"],"updated":true},{"value":"","maybes":["4","6","7","8"],"updated":true},{"value":"","maybes":["2","4","6","7"],"updated":true},{"value":"","maybes":["4","6","7","8"],"updated":true},{"value":"","maybes":["2","6","7","8","9"],"updated":true},{"value":"","maybes":["2","4","7","8","9"],"updated":true},{"value":"","maybes":["2","4","6","7"],"updated":true},{"value":"","maybes":["1","2","3","5","9"],"updated":true},{"value":"","maybes":["1","3","4","5","6","7","9"],"updated":true},{"value":"","maybes":["3","5","6","8","9"],"updated":true},{"value":"","maybes":["4","5","6","7","8"],"updated":true},{"value":"","maybes":["2","4","5","6","7"],"updated":true},{"value":"","maybes":["4","6","7","8"],"updated":true},{"value":"","maybes":["2","6","7","8"],"updated":true},{"value":"","maybes":["2","4","7","8"],"updated":true},{"value":"","maybes":["2","4","6","7"],"updated":true},{"value":"","maybes":["2","5"],"updated":true},{"value":"","maybes":["4","5","6","7"],"updated":true},{"value":"","maybes":["5","6","8"],"updated":true},{"value":"1","maybes":["1","4","5","6","7","8"],"updated":true},{"value":"9","maybes":["2","4","5","6","7","9"],"updated":true},{"value":"3","maybes":["3","4","6","7","8"],"updated":true},{"value":"","maybes":["7"],"updated":true},{"value":"5","maybes":["4","5","7"],"updated":true},{"value":"8","maybes":["1","4","7","8"],"updated":true},{"value":"6","maybes":["1","6","9"],"updated":true},{"value":"","maybes":["1","9"],"updated":true},{"value":"2","maybes":["2","9"],"updated":true},{"value":"","maybes":["4","7","9"],"updated":true},{"value":"3","maybes":["1","3","4","7"],"updated":true},{"value":"","maybes":["1","4","7","9"],"updated":true},{"value":"","maybes":["3","6","7"],"updated":true},{"value":"","maybes":["3","4","7"],"updated":true},{"value":"9","maybes":["1","4","6","7","9"],"updated":true},{"value":"","maybes":["1","3","5"],"updated":true},{"value":"","maybes":["1","3","5"],"updated":true},{"value":"","maybes":["3","5"],"updated":true},{"value":"","maybes":["4","6","7","8"],"updated":true},{"value":"","maybes":["1","4","6","7"],"updated":true},{"value":"2","maybes":["1","2","4","6","7","8"],"updated":true},{"value":"","maybes":["2","3","6"],"updated":true},{"value":"","maybes":["2","3"],"updated":true},{"value":"","maybes":["1","2","6"],"updated":true},{"value":"7","maybes":["1","3","7","9"],"updated":true},{"value":"8","maybes":["1","3","8","9"],"updated":true},{"value":"4","maybes":["3","4","9"],"updated":true},{"value":"","maybes":["6","9"],"updated":true},{"value":"","maybes":["1","6"],"updated":true},{"value":"5","maybes":["1","5","6","9"],"updated":true}]')
 sudoku.load('puzzle');
 
+var remaining = 10;
 
+var recursivePromise = action => {
+	return new Promise( resolve => {
+		let loop = () => {
+			action().then( () => {
+				resolve()
+			}, () => {
+				loop()
+			})
+		};
+		loop()
+	})
+};
+
+var action = () => {
+	return new Promise( (resolve, reject) => {
+		remaining -= Math.random();
+		console.log('action');
+		if (remaining > 0) reject();
+		else resolve()
+	})
+};
