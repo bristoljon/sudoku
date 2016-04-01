@@ -1,7 +1,7 @@
 var sudoku = (function() {
 
 	const DIGITS = ['1','2','3','4','5','6','7','8','9'];
-	
+
 	// Check array for item, or check array of cells for cell.value
 	Array.prototype.has = function (item) {
 		// Allows checking array of cells for value
@@ -67,90 +67,28 @@ var sudoku = (function() {
 		return ar;
 	};
 
-
-	$('#clear').click(function () {
-		sudoku.clear()
-	});
-
-	$('#save').click(function () {
-		sudoku.save('puzzle')
-	});
-
-	$('#load').click(function () {
-		sudoku.load('puzzle')
-	});
-
-	$('#visualOff').click(function () {
-		sudoku.config.visuals = 0
-	});
-
-	$('#visualSlow').click(function () {
-		sudoku.config.visuals = 500
-	});
-
-	$('#visualFast').click(function () {
-		sudoku.config.visuals = 10
-	});
-
-	$('#backStep').click(function () {
-		sudoku.step('back')
-	});
-
-	$('#forwardStep').click(function () {
-		sudoku.step('forward')
-	});
-
-	$('.solve').click(function (e) {
-		$('.solve').prop("disabled",true);
-		switch (e.target.value) {
-			case 'Not Search':
-				sudoku.solve(sudoku.update.bind(sudoku), false)
-					.then( () => { $('.solve').prop("disabled",false); });
-				break;
-			case 'Box Search':
-				sudoku.solve(sudoku.search.bind(sudoku), false, 'box')
-					.then( () => { $('.solve').prop("disabled",false); });
-				break;
-			case 'Column Search':
-				sudoku.solve(sudoku.search.bind(sudoku), false, 'x')
-					.then( () => { $('.solve').prop("disabled",false); });
-				break;
-			case 'Row Search':
-				sudoku.solve(sudoku.search.bind(sudoku), false, 'y')
-					.then( () => { $('.solve').prop("disabled",false); });
-				break;
-			case 'Solve':
-				console.time('Solve');
-				sudoku.solve(sudoku.update.bind(sudoku), true)
-					.then( (blanks) => {
-						if (blanks) sudoku.solve(sudoku.search.bind(sudoku), true, 'box');
-					})
-					.then( (blanks) => {
-						if (blanks) sudoku.solve(sudoku.search.bind(sudoku), true, 'x');
-					})
-					.then( (blanks) => {
-						if (blanks) sudoku.solve(sudoku.search.bind(sudoku), true, 'y');
-					})
-					.then( (blanks) => {
-						$('.solve').prop("disabled",false);
-						if (blanks) {
-							console.timeEnd('Solve');
-							console.log('Solve failed');
-							console.log(blanks)
-						}
-						else {
-							console.timeEnd('Solve');
-							console.log('Solve succeeded');
-							console.log(blanks)
-						}
-					});
-				break;
-			default:
-				console.log('No handler found')
-				break;
+	// Custom jQuery selector replacements used
+	var $set = (selection, attribute, flag) => {
+		var type = Object.prototype.toString.call( selection );
+		if (type === '[object HTMLCollection]') {
+			for (var i = 0; i < selection.length; i++) {
+				selection[i][attribute] = flag
+			}
 		}
-	});
-	
+		else console.log('Not an HTMLCollection')
+	};
+
+
+	var $call = (selection, method, ...args) => {
+		var type = Object.prototype.toString.call( selection );
+		if (type === '[object HTMLCollection]') {
+			for (var i = 0; i < selection.length; i++) {
+				selection[i][method].apply(selection[i], args)
+			}
+		}
+		else console.log('Not an HTMLCollection')
+	};
+
 	// Cell constructor that adds unique ID to each one
 	var Cell = (function() {
 		var counter = 0;
@@ -291,16 +229,15 @@ var sudoku = (function() {
 	};
 
 	Cell.prototype.showPopover = function (e) {
-		$('#popover')
-		.html('Maybe: ' + this.maybes.sort())
-		.show();
+		document.getElementById('popover')
+			.innerHTML = 'Maybe: ' + this.maybes.sort()
 	};
 
-	Cell.prototype.highlight = function (colour) {
-		$(this.el).css({backgroundColor: colour});
+	Cell.prototype.highlight = function (color) {
+		this.el.style.backgroundColor = color;
 	};
-	
-	return {
+
+	var sudoku = {
 		cells: [],
 		config: {
 			visuals: 10
@@ -349,9 +286,8 @@ var sudoku = (function() {
 					this.cells.push(cell);
 				}
 			}
-			this.$cells = $('.cell');
 		},
-	
+
 		getBlanks: function (selection) {
 			var cells = selection || this.cells,
 				ar = [];
@@ -362,7 +298,7 @@ var sudoku = (function() {
 			}
 			return ar
 		},
-	
+
 		getGroup: function (group, id) {
 			var cells = this.cells,
 				ar = [];
@@ -515,7 +451,6 @@ var sudoku = (function() {
 		},
 
 		clear: function () {
-			sudoku.$cells.val('');
 			this.cells.forEach(function (cell) {
 				cell.value = '';
 				cell.maybes = ['1','2','3','4','5','6','7','8','9'];
@@ -635,34 +570,105 @@ var sudoku = (function() {
 			let end = self.cells.getBlanks().length;
 			return start - end;
 		}
-	}
+	};
+
+	// Event listeners
+	document.getElementById('clear').addEventListener('click', () => {
+		sudoku.clear()
+	});
+
+	document.getElementById('save').addEventListener('click', () => {
+		sudoku.save('puzzle')
+	});
+
+	document.getElementById('load').addEventListener('click', () => {
+		sudoku.load('puzzle')
+	});
+
+	$call(document.getElementsByClassName('visual'), 'addEventListener', 'click',
+	(e) => {
+		var buttons = document.getElementsByClassName('visual');
+		[].forEach.call(buttons, (el) => {
+				el.classList.remove('active');
+		});
+		e.target.classList.add('active');
+		switch (e.target.innerText) {
+			case 'Slow':
+				sudoku.config.visuals = 500
+				break;
+			case 'Fast':
+				sudoku.config.visuals = 10;
+				break;
+			case 'Ultra':
+				sudoku.config.visuals = 0;
+				break;
+		}
+	});
+
+	document.getElementById('backStep').addEventListener('click', () => {
+		sudoku.step('back')
+	});
+
+	document.getElementById('forwardStep').addEventListener('click', () => {
+		sudoku.step('forward')
+	});
+
+	$call(document.getElementsByClassName('solve'), 'addEventListener', 'click',
+	(e) => {
+		var buttons = document.getElementsByClassName('solve');
+		$set(buttons, 'disabled', true);
+		switch (e.target.value) {
+			case 'Not Search':
+				sudoku.solve(sudoku.update.bind(sudoku), false)
+					.then( () => { $set(buttons, 'disabled', false); });
+				break;
+			case 'Box Search':
+				sudoku.solve(sudoku.search.bind(sudoku), false, 'box')
+					.then( () => { $set(buttons, 'disabled', false); });
+				break;
+			case 'Column Search':
+				sudoku.solve(sudoku.search.bind(sudoku), false, 'x')
+					.then( () => { $set(buttons, 'disabled', false); });
+				break;
+			case 'Row Search':
+				sudoku.solve(sudoku.search.bind(sudoku), false, 'y')
+					.then( () => { $set(buttons, 'disabled', false); });
+				break;
+			case 'Solve':
+				console.time('Solve');
+				sudoku.solve(sudoku.update.bind(sudoku), true)
+					.then( (blanks) => {
+						if (blanks) sudoku.solve(sudoku.search.bind(sudoku), true, 'box');
+					})
+					.then( (blanks) => {
+						if (blanks) sudoku.solve(sudoku.search.bind(sudoku), true, 'x');
+					})
+					.then( (blanks) => {
+						if (blanks) sudoku.solve(sudoku.search.bind(sudoku), true, 'y');
+					})
+					.then( (blanks) => {
+						$set(buttons, 'disabled', false);
+						if (blanks) {
+							console.timeEnd('Solve');
+							console.log('Solve failed');
+							console.log(blanks)
+						}
+						else {
+							console.timeEnd('Solve');
+							console.log('Solve succeeded');
+							console.log(blanks)
+						}
+					});
+				break;
+			default:
+				console.log('No handler found')
+				break;
+		}
+	});
+	return sudoku
 })();
 
 sudoku.init();
 
 localStorage.setItem('puzzle', '[{"value":"4","maybes":["3","4","9"],"updated":true},{"value":"","maybes":["3","9"],"updated":true},{"value":"","maybes":["5"],"updated":true},{"value":"8","maybes":["3","5","8","9"],"updated":true},{"value":"2","maybes":["2","3","5","6","9"],"updated":true},{"value":"7","maybes":["3","5","6","7","9"],"updated":true},{"value":"","maybes":["5","6","9"],"updated":true},{"value":"","maybes":["1","5","6"],"updated":true},{"value":"","maybes":["1","6","9"],"updated":true},{"value":"1","maybes":["1","3","7","8","9"],"updated":true},{"value":"","maybes":["3","7","8","9"],"updated":true},{"value":"","maybes":["5","7"],"updated":true},{"value":"","maybes":["3","5","9"],"updated":true},{"value":"","maybes":["3","5","6","9"],"updated":true},{"value":"","maybes":["3","5","6","9"],"updated":true},{"value":"2","maybes":["2","4","5","6","7","9"],"updated":true},{"value":"","maybes":["4","5","6","7"],"updated":true},{"value":"","maybes":["4","6","7","9"],"updated":true},{"value":"","maybes":["2","7","9"],"updated":true},{"value":"6","maybes":["2","6","7","9"],"updated":true},{"value":"","maybes":["2","5","7"],"updated":true},{"value":"4","maybes":["4","5","9"],"updated":true},{"value":"","maybes":["5","9"],"updated":true},{"value":"1","maybes":["1","5","9"],"updated":true},{"value":"3","maybes":["3","5","7","9"],"updated":true},{"value":"8","maybes":["5","7","8"],"updated":true},{"value":"","maybes":["7","9"],"updated":true},{"value":"5","maybes":["2","5","6","7","8","9"],"updated":true},{"value":"1","maybes":["1","2","4","7","8","9"],"updated":true},{"value":"3","maybes":["2","3","4","6","7"],"updated":true},{"value":"","maybes":["2","9"],"updated":true},{"value":"","maybes":["4","6","7","9"],"updated":true},{"value":"","maybes":["6","8","9"],"updated":true},{"value":"","maybes":["4","6","7","8"],"updated":true},{"value":"","maybes":["2","4","6","7"],"updated":true},{"value":"","maybes":["4","6","7","8"],"updated":true},{"value":"","maybes":["2","6","7","8","9"],"updated":true},{"value":"","maybes":["2","4","7","8","9"],"updated":true},{"value":"","maybes":["2","4","6","7"],"updated":true},{"value":"","maybes":["1","2","3","5","9"],"updated":true},{"value":"","maybes":["1","3","4","5","6","7","9"],"updated":true},{"value":"","maybes":["3","5","6","8","9"],"updated":true},{"value":"","maybes":["4","5","6","7","8"],"updated":true},{"value":"","maybes":["2","4","5","6","7"],"updated":true},{"value":"","maybes":["4","6","7","8"],"updated":true},{"value":"","maybes":["2","6","7","8"],"updated":true},{"value":"","maybes":["2","4","7","8"],"updated":true},{"value":"","maybes":["2","4","6","7"],"updated":true},{"value":"","maybes":["2","5"],"updated":true},{"value":"","maybes":["4","5","6","7"],"updated":true},{"value":"","maybes":["5","6","8"],"updated":true},{"value":"1","maybes":["1","4","5","6","7","8"],"updated":true},{"value":"9","maybes":["2","4","5","6","7","9"],"updated":true},{"value":"3","maybes":["3","4","6","7","8"],"updated":true},{"value":"","maybes":["7"],"updated":true},{"value":"5","maybes":["4","5","7"],"updated":true},{"value":"8","maybes":["1","4","7","8"],"updated":true},{"value":"6","maybes":["1","6","9"],"updated":true},{"value":"","maybes":["1","9"],"updated":true},{"value":"2","maybes":["2","9"],"updated":true},{"value":"","maybes":["4","7","9"],"updated":true},{"value":"3","maybes":["1","3","4","7"],"updated":true},{"value":"","maybes":["1","4","7","9"],"updated":true},{"value":"","maybes":["3","6","7"],"updated":true},{"value":"","maybes":["3","4","7"],"updated":true},{"value":"9","maybes":["1","4","6","7","9"],"updated":true},{"value":"","maybes":["1","3","5"],"updated":true},{"value":"","maybes":["1","3","5"],"updated":true},{"value":"","maybes":["3","5"],"updated":true},{"value":"","maybes":["4","6","7","8"],"updated":true},{"value":"","maybes":["1","4","6","7"],"updated":true},{"value":"2","maybes":["1","2","4","6","7","8"],"updated":true},{"value":"","maybes":["2","3","6"],"updated":true},{"value":"","maybes":["2","3"],"updated":true},{"value":"","maybes":["1","2","6"],"updated":true},{"value":"7","maybes":["1","3","7","9"],"updated":true},{"value":"8","maybes":["1","3","8","9"],"updated":true},{"value":"4","maybes":["3","4","9"],"updated":true},{"value":"","maybes":["6","9"],"updated":true},{"value":"","maybes":["1","6"],"updated":true},{"value":"5","maybes":["1","5","6","9"],"updated":true}]')
 sudoku.load('puzzle');
-
-var remaining = 10;
-
-var recursivePromise = action => {
-	return new Promise( resolve => {
-		let loop = () => {
-			action().then( () => {
-				resolve()
-			}, () => {
-				loop()
-			})
-		};
-		loop()
-	})
-};
-
-var action = () => {
-	return new Promise( (resolve, reject) => {
-		remaining -= Math.random();
-		console.log('action');
-		if (remaining > 0) reject();
-		else resolve()
-	})
-};

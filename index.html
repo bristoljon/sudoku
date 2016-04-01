@@ -9,8 +9,7 @@
 
     <title>Sudoku Cracker</title>
 
-    <link href='http://fonts.googleapis.com/css?family=Yanone+Kaffeesatz' rel='stylesheet' type='text/css'>
-	<link href="/css/styles.min.css" rel="stylesheet">
+    <link href="/css/styles.min.css" rel="stylesheet">
 
     <style type="text/css">
 
@@ -25,33 +24,33 @@
 	}
 
 	.puzzle {
-    	margin: 15px auto;
-    	width: 332px;
-    	height: 332px;
-		border: 1px grey solid;
-    }
-    
-    .puzzle * {
-		box-sizing: border-box;
-    	float:left;
-    }
+  	margin: 15px auto;
+  	width: 332px;
+  	height: 332px;
+    border: 1px grey solid;
+  }
+
+  .puzzle * {
+  	box-sizing: border-box;
+  	float:left;
+  }
 
 	.controls *{
 		margin:2px;
 	}
-    
-    .box {
+
+  .box {
 		border: 1px blue solid;
 		width: 110px;
 		height: 110px;
-    }
-    
-    .cell {
-    	border: 1px red solid;
-    	height: 36px;
-    	width: 36px;
-		font-size: 1.6em;
-    }
+  }
+
+  .cell {
+  	border: 1px red solid;
+  	height: 36px;
+  	width: 36px;
+    font-size: 1.6em;
+  }
 
 	#popover {
 		border: 1px solid black;
@@ -68,35 +67,29 @@
 		text-align: left;
 	}
 
-	input::-webkit-outer-spin-button,
-	input::-webkit-inner-spin-button {
-		/* display: none; <- Crashes Chrome on hover */
-		-webkit-appearance: none;
-		margin: 0; /* <-- Apparently some margin are still there even though it's hidden */
-	}
-    
     </style>
 
 <body>
-    <h1 class="text-center">Sudoku Solver</h1>
+    <h2 class="text-center">Sudoku Solver</h2>
 	<div id="controls">
 
 		<input type="button" class="btn btn-danger" id="clear" value="Clear"/>
 		<input type="button" class="btn btn-danger" id="save" value="Save"/>
 		<input type="button" class="btn btn-danger" id="load" value="Load"/>
 
-		<div class="blue btn-group" data-toggle="buttons">
-			<label class="btn btn-primary" id="visualSlow">
-				<input type="radio" name="options">Slow
+		<div class="blue btn-group">
+			<label class="btn btn-primary visual" id="visualSlow">
+				Slow
 			</label>
-			<label class="btn btn-primary active" id="visualFast">
-				<input type="radio" name="options" checked>Fast
+			<label class="btn btn-primary visual active" id="visualFast">
+				Fast
 			</label>
-			<label class="btn btn-primary" id="visualOff" >
-				<input type="radio" name="options">Ultra
+			<label class="btn btn-primary visual" id="visualOff" >
+				Ultra
 			</label>
 		</div>
 	</div>
+
 	<div id="popover"></div>
 	<div class="puzzle">
 		<div class='box' id="0"></div>
@@ -142,14 +135,9 @@
 		<p>Use the arrow keys to scroll backwards and forward digit by digit</p>
 	</div>
 
-	<script type="text/javascript" src="http://code.jquery.com/jquery-latest.min.js"></script>
-	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js" integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS" crossorigin="anonymous"></script>
 	<script type="text/javascript" src="script.js"></script>
 
 <script type="text/javascript">
-
-    
-
 
 </script>
 
