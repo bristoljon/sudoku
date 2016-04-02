@@ -2,26 +2,12 @@ var sudoku = (function() {
 
 	const DIGITS = ['1','2','3','4','5','6','7','8','9'];
 
-	// Check array for item, or check array of cells for cell.value
+	// Allows checking array of cells for value.
 	Array.prototype.has = function (item) {
-		// Allows checking array of cells for value
-		if (typeof this[0] === 'object') {
-			for (var i = 0; i < this.length; i++) {
-				if (this[i].value === item) return true
-			}
-		}
-		else {
-			for (var j = 0; j < this.length; j++) {
-				if (this[j] === item) return true
-			}
+		for (var i = 0; i < this.length; i++) {
+			if (this[i].value === item) return true
 		}
 		return false
-	};
-
-	// Remove item from array
-	Array.prototype.remove = function (item) {
-		var index = this.indexOf(item);
-		if (index > -1) this.splice(index, 1);
 	};
 
 	// Remove duplicated cells from array
@@ -67,6 +53,15 @@ var sudoku = (function() {
 		return ar;
 	};
 
+	// Takes a cell prototype method (as a string) and calls it on all cells in
+	// the array. e.g. cells.all('highlight','white')
+	Array.prototype.all = function (method, ...args) {
+		for (var i =0; i < this.length; i++) {
+			this[i][method].call(this[i], args)
+		}
+		return this;
+	};
+
 	// Custom jQuery selector replacements used
 	var $set = (selection, attribute, flag) => {
 		var type = Object.prototype.toString.call( selection );
@@ -96,7 +91,7 @@ var sudoku = (function() {
 			this.x = x;
 			this.y = y;
 			this.id = counter++;
-			this.maybes = ['1','2','3','4','5','6','7','8','9'];
+			this.maybes = new Set(DIGITS);
 
 			// Wrap in proxy to enable visualisation of 'thinking'
 			var proxy = new Proxy(this, {
@@ -134,28 +129,28 @@ var sudoku = (function() {
 		switch (event.keyCode) {
 			case 37: // Left
 				if (this.x > 0) {
-					$(sudoku.getCell(this.x -1, this.y).el).focus()
+					sudoku.getCell(this.x -1, this.y).el.focus()
 				}
 				else {
-					$(sudoku.getCell(8, this.y - 1).el).focus()
+					sudoku.getCell(8, this.y - 1).el.focus()
 				}
 				break;
 			case 38: // Up
 				if (this.y > 0) {
-					$(sudoku.getCell(this.x, this.y -1).el).focus()
+					sudoku.getCell(this.x, this.y -1).el.focus()
 				}
 				break;
 			case 39: // Right
 				if (this.x < 8) {
-					$(sudoku.getCell(this.x + 1, this.y).el).focus()
+					sudoku.getCell(this.x + 1, this.y).el.focus()
 				}
 				else {
-					$(sudoku.getCell(0, this.y + 1).el).focus()
+					sudoku.getCell(0, this.y + 1).el.focus()
 				}
 				break;
 			case 40: //Down
 				if (this.y < 8) {
-					$(sudoku.getCell(this.x, this.y + 1).el).focus()
+					sudoku.getCell(this.x, this.y + 1).el.focus()
 				}
 				break;
 			case 46: // Delete key
@@ -173,7 +168,7 @@ var sudoku = (function() {
 					if (key !== current && current !== '') {
 						// Add the deleted digit to the groups' maybes lists
 						this.updateGroup(current);
-						this.maybes.push(current);
+						this.maybes.add(current);
 					}
 					this.value = key;
 					this.updateGroup();
@@ -186,21 +181,19 @@ var sudoku = (function() {
 
 	// Returns true if digit is found in cells maybes list
 	Cell.prototype.couldBe = function (digit)  {
-		for (var i = 0; i < this.maybes.length; i++) {
-			if (this.maybes[i] === digit) return true
-		}
+		if (this.maybes.has(digit)) return true
 		return false
 	};
 
 	// Removes passed digit from maybes list and flags as updated
 	Cell.prototype.cantBe = function (digit)  {
-		this.maybes.remove(digit);
+		this.maybes.delete(digit);
 		this.updated = true;
 	};
 
 	// Adds digit to maybes list and flags as updated
 	Cell.prototype.canBe = function (digit)  {
-		this.maybes.push(digit);
+		this.maybes.add(digit);
 		this.updated = true;
 	};
 
@@ -230,7 +223,7 @@ var sudoku = (function() {
 
 	Cell.prototype.showPopover = function (e) {
 		document.getElementById('popover')
-			.innerHTML = 'Maybe: ' + this.maybes.sort()
+			.innerHTML = 'Maybe: ' + [...this.maybes].sort()
 	};
 
 	Cell.prototype.highlight = function (color) {
@@ -321,11 +314,9 @@ var sudoku = (function() {
 		// Search every blank cells' row, column and box and add any values found to 'not' list
 		update: function* () {
 			var blanks = this.getBlanks().getUpdated(),
-				changed = 0;
+					changed = 0;
 			for (var i = 0; i < blanks.length; i++) {
 				var blank = blanks[i];
-				blank.highlight('pink');
-				yield;
 
 				var cells = blank.getRemaining('x')
 						.concat(blank.getRemaining('y'))
@@ -337,14 +328,12 @@ var sudoku = (function() {
 				for (var j = 0; j < cells.length; j++) {
 					var cell = cells[j],
 						digit = cell.value;
-					cell.highlight('orange');
-					yield;
 
 					if (digit !== '') {
-						cell.highlight('green');
+						cell.highlight('orange');
 						blank.cantBe(digit);
 						blank.highlight('green');
-						yield;
+						yield(changed)
 					}
 					cell.highlight('white');
 				}
@@ -352,7 +341,6 @@ var sudoku = (function() {
 				if (blank.maybes.length === 1) {
 					blank.is(blank.maybes[0]);
 					changed++;
-					yield;
 				}
 				blank.highlight('white');
 				blank.updated = false;
@@ -361,6 +349,8 @@ var sudoku = (function() {
 		},
 
 		// Solve method that checks the possible position for each digit in the group
+		// If only one found, enters it. Yield statements are breakponts for visual
+		// yield(changed) acts as stop point if user cancels search
 		search: function* (type) {
 			var groups = [],
 				changed = 0;
@@ -393,11 +383,11 @@ var sudoku = (function() {
 						if (maybes.length === 1) {
 							maybes[0].is(digit);
 							changed ++;
-							yield;
 						}
 						else if (maybes.length === 2 && type === 'box') {
 							sudoku.paircheck(maybes, digit);
 						}
+						yield(changed)
 					}
 				}
 			}
@@ -451,9 +441,10 @@ var sudoku = (function() {
 		},
 
 		clear: function () {
+			if (this._timer) this._stop = true;
 			this.cells.forEach(function (cell) {
 				cell.value = '';
-				cell.maybes = ['1','2','3','4','5','6','7','8','9'];
+				cell.maybes = new Set(DIGITS);
 				cell.el.style.color = 'black';
 				cell.highlight('white');
 			})
@@ -465,7 +456,7 @@ var sudoku = (function() {
 			var cells = this.cells.map( (cell) => {
 				var save = {};
 				save.value = cell.value;
-				save.maybes = cell.maybes;
+				save.maybes = [...cell.maybes];
 				save.updated = cell.updated;
 				return save;
 			});
@@ -487,7 +478,8 @@ var sudoku = (function() {
 			}
 			for (var i = 0; i < cells.length; i++) {
 				for (var prop in cells[i]) {
-					this.cells[i][prop] = cells[i][prop]
+					this.cells[i][prop] = cells[i][prop];
+					this.cells[i].maybes = new Set(this.cells[i].maybes)
 				}
 			}
 			// If loaded from storage reset history and save first step
@@ -502,19 +494,24 @@ var sudoku = (function() {
 		// set - self invokes until no further values are found.
 		solve: function (method, repeat, ...args) {
 			var self = this,
-				visuals = this.config.visuals;
+					visuals = this.config.visuals,
+					method = method.bind(this);
 			return new Promise(function (resolve, reject) {
 				if (visuals && !repeat) {
-					self.solveAsync(method, args[0])
-						.then( () => {}, blanks => { resolve(blanks) })
+					self.solveAsync(method, args[0]).then(
+						found => { resolve(found) },
+						reason => { reject(reason) }
+					)
 				}
 				else if (visuals && repeat) {
 					let loop = () => {
 						self.solveAsync(method, args[0])
-							.then((blanks) => {
-								resolve(blanks)
-							}, () => {
-								loop()
+							.then( found => {
+								var blanks = self.cells.getBlanks().length;
+								if (found && blanks) loop()
+								else resolve(blanks)
+							}, (reason) => {
+								reject(reason)
 							})
 					};
 					loop()
@@ -534,23 +531,27 @@ var sudoku = (function() {
 			});
 		},
 
-		// Rejects promise if last run found values, otherwise resolves
+		// Calls next on iterator at setintervals until generator is done or
+		// _stop flag is set to true.
+		// Fulfils promise with number of values found in last run
+		// Rejects if stopped
 		solveAsync: function (method,...args) {
 			var self = this,
 				speed = this.config.visuals,
 				iterator = method(args[0]),
 				start = this.cells.getBlanks().length;
 			return new Promise(function (resolve, reject) {
-				var ref = window.setInterval(() => {
-					var state = iterator.next();
-					if (state.done) {
-						window.clearInterval(ref);
-						let end = self.cells.getBlanks().length,
-							found = start - end;
-						if (found) {
-							reject(end)
+				self._timer = window.setInterval(() => {
+					var step = iterator.next();
+					if (self._stop && step.value >= 0 || step.done) {
+						window.clearInterval(self._timer);
+						self._timer = null;
+						if (self._stop) {
+							reject('Scan stopped');
+							self._stop = false;
+							self.cells.all('highlight', 'white');
 						}
-						else resolve(end)
+						else resolve(step.value);
 					}
 				}, speed);
 			});
@@ -560,15 +561,13 @@ var sudoku = (function() {
 		// found
 		solveSync: function (method,...args) {
 			var self = this,
-				iterator = method(args[0]),
-				start = this.cells.getBlanks().length;
+				iterator = method(args[0]);
 
 			while (true) {
 				var state = iterator.next();
 				if (state.done) break;
 			}
-			let end = self.cells.getBlanks().length;
-			return start - end;
+			return state.value
 		}
 	};
 
@@ -615,60 +614,84 @@ var sudoku = (function() {
 
 	$call(document.getElementsByClassName('solve'), 'addEventListener', 'click',
 	(e) => {
+
 		var buttons = document.getElementsByClassName('solve');
 		$set(buttons, 'disabled', true);
-		switch (e.target.value) {
-			case 'Not Search':
-				sudoku.solve(sudoku.update.bind(sudoku), false)
-					.then( () => { $set(buttons, 'disabled', false); });
-				break;
-			case 'Box Search':
-				sudoku.solve(sudoku.search.bind(sudoku), false, 'box')
-					.then( () => { $set(buttons, 'disabled', false); });
-				break;
-			case 'Column Search':
-				sudoku.solve(sudoku.search.bind(sudoku), false, 'x')
-					.then( () => { $set(buttons, 'disabled', false); });
-				break;
-			case 'Row Search':
-				sudoku.solve(sudoku.search.bind(sudoku), false, 'y')
-					.then( () => { $set(buttons, 'disabled', false); });
-				break;
-			case 'Solve':
-				console.time('Solve');
-				sudoku.solve(sudoku.update.bind(sudoku), true)
-					.then( (blanks) => {
-						if (blanks) sudoku.solve(sudoku.search.bind(sudoku), true, 'box');
-					})
-					.then( (blanks) => {
-						if (blanks) sudoku.solve(sudoku.search.bind(sudoku), true, 'x');
-					})
-					.then( (blanks) => {
-						if (blanks) sudoku.solve(sudoku.search.bind(sudoku), true, 'y');
-					})
-					.then( (blanks) => {
-						$set(buttons, 'disabled', false);
-						if (blanks) {
-							console.timeEnd('Solve');
-							console.log('Solve failed');
-							console.log(blanks)
-						}
-						else {
-							console.timeEnd('Solve');
-							console.log('Solve succeeded');
-							console.log(blanks)
-						}
-					});
-				break;
-			default:
-				console.log('No handler found')
-				break;
+		var done = () => {
+			$set(buttons, 'disabled', false);
+			e.target.classList.remove('btn-danger');
+			e.target.classList.add('btn-success');
 		}
+
+		// Check sudoku is not currently scanning
+		if (!sudoku._timer) {
+
+			var run = (method, arg) => {
+				sudoku.solve(method, false, arg)
+					.then(done)
+					.catch( (e) => { console.log(e); done() });
+			}
+
+			e.target.disabled = false;
+			e.target.classList.remove('btn-success');
+			e.target.classList.add('btn-danger');
+
+			switch (e.target.value) {
+				case 'Not Search':
+					run(sudoku.update);
+					break;
+				case 'Box Search':
+				  run(sudoku.search, 'box');
+					break;
+				case 'Column Search':
+					run(sudoku.search, 'x');
+					break;
+				case 'Row Search':
+					run(sudoku.search, 'y');
+					break;
+				case 'Solve':
+					console.time('Solve');
+					sudoku.solve(sudoku.update, true)
+						.then( blanks => {
+							if (blanks) return sudoku.solve(sudoku.search, true, 'box');
+						})
+						.then( blanks => {
+							if (blanks) return sudoku.solve(sudoku.search, true, 'x');
+						})
+						.then( blanks => {
+							if (blanks) return sudoku.solve(sudoku.search, true, 'y');
+						})
+						.then( blanks => {
+							done()
+							if (blanks) {
+								console.timeEnd('Solve');
+								console.log('Solve failed');
+								console.log(blanks)
+							}
+							else {
+								console.timeEnd('Solve');
+								console.log('Solve succeeded');
+								console.log(blanks)
+							}
+						})
+						.catch( e => {
+							console.log(e);
+							done();
+						});
+					break;
+				default:
+					console.log('No handler found')
+					break;
+			}
+		}
+		else {
+			sudoku._stop = true;
+		}
+
 	});
 	return sudoku
 })();
 
 sudoku.init();
-
-localStorage.setItem('puzzle', '[{"value":"4","maybes":["3","4","9"],"updated":true},{"value":"","maybes":["3","9"],"updated":true},{"value":"","maybes":["5"],"updated":true},{"value":"8","maybes":["3","5","8","9"],"updated":true},{"value":"2","maybes":["2","3","5","6","9"],"updated":true},{"value":"7","maybes":["3","5","6","7","9"],"updated":true},{"value":"","maybes":["5","6","9"],"updated":true},{"value":"","maybes":["1","5","6"],"updated":true},{"value":"","maybes":["1","6","9"],"updated":true},{"value":"1","maybes":["1","3","7","8","9"],"updated":true},{"value":"","maybes":["3","7","8","9"],"updated":true},{"value":"","maybes":["5","7"],"updated":true},{"value":"","maybes":["3","5","9"],"updated":true},{"value":"","maybes":["3","5","6","9"],"updated":true},{"value":"","maybes":["3","5","6","9"],"updated":true},{"value":"2","maybes":["2","4","5","6","7","9"],"updated":true},{"value":"","maybes":["4","5","6","7"],"updated":true},{"value":"","maybes":["4","6","7","9"],"updated":true},{"value":"","maybes":["2","7","9"],"updated":true},{"value":"6","maybes":["2","6","7","9"],"updated":true},{"value":"","maybes":["2","5","7"],"updated":true},{"value":"4","maybes":["4","5","9"],"updated":true},{"value":"","maybes":["5","9"],"updated":true},{"value":"1","maybes":["1","5","9"],"updated":true},{"value":"3","maybes":["3","5","7","9"],"updated":true},{"value":"8","maybes":["5","7","8"],"updated":true},{"value":"","maybes":["7","9"],"updated":true},{"value":"5","maybes":["2","5","6","7","8","9"],"updated":true},{"value":"1","maybes":["1","2","4","7","8","9"],"updated":true},{"value":"3","maybes":["2","3","4","6","7"],"updated":true},{"value":"","maybes":["2","9"],"updated":true},{"value":"","maybes":["4","6","7","9"],"updated":true},{"value":"","maybes":["6","8","9"],"updated":true},{"value":"","maybes":["4","6","7","8"],"updated":true},{"value":"","maybes":["2","4","6","7"],"updated":true},{"value":"","maybes":["4","6","7","8"],"updated":true},{"value":"","maybes":["2","6","7","8","9"],"updated":true},{"value":"","maybes":["2","4","7","8","9"],"updated":true},{"value":"","maybes":["2","4","6","7"],"updated":true},{"value":"","maybes":["1","2","3","5","9"],"updated":true},{"value":"","maybes":["1","3","4","5","6","7","9"],"updated":true},{"value":"","maybes":["3","5","6","8","9"],"updated":true},{"value":"","maybes":["4","5","6","7","8"],"updated":true},{"value":"","maybes":["2","4","5","6","7"],"updated":true},{"value":"","maybes":["4","6","7","8"],"updated":true},{"value":"","maybes":["2","6","7","8"],"updated":true},{"value":"","maybes":["2","4","7","8"],"updated":true},{"value":"","maybes":["2","4","6","7"],"updated":true},{"value":"","maybes":["2","5"],"updated":true},{"value":"","maybes":["4","5","6","7"],"updated":true},{"value":"","maybes":["5","6","8"],"updated":true},{"value":"1","maybes":["1","4","5","6","7","8"],"updated":true},{"value":"9","maybes":["2","4","5","6","7","9"],"updated":true},{"value":"3","maybes":["3","4","6","7","8"],"updated":true},{"value":"","maybes":["7"],"updated":true},{"value":"5","maybes":["4","5","7"],"updated":true},{"value":"8","maybes":["1","4","7","8"],"updated":true},{"value":"6","maybes":["1","6","9"],"updated":true},{"value":"","maybes":["1","9"],"updated":true},{"value":"2","maybes":["2","9"],"updated":true},{"value":"","maybes":["4","7","9"],"updated":true},{"value":"3","maybes":["1","3","4","7"],"updated":true},{"value":"","maybes":["1","4","7","9"],"updated":true},{"value":"","maybes":["3","6","7"],"updated":true},{"value":"","maybes":["3","4","7"],"updated":true},{"value":"9","maybes":["1","4","6","7","9"],"updated":true},{"value":"","maybes":["1","3","5"],"updated":true},{"value":"","maybes":["1","3","5"],"updated":true},{"value":"","maybes":["3","5"],"updated":true},{"value":"","maybes":["4","6","7","8"],"updated":true},{"value":"","maybes":["1","4","6","7"],"updated":true},{"value":"2","maybes":["1","2","4","6","7","8"],"updated":true},{"value":"","maybes":["2","3","6"],"updated":true},{"value":"","maybes":["2","3"],"updated":true},{"value":"","maybes":["1","2","6"],"updated":true},{"value":"7","maybes":["1","3","7","9"],"updated":true},{"value":"8","maybes":["1","3","8","9"],"updated":true},{"value":"4","maybes":["3","4","9"],"updated":true},{"value":"","maybes":["6","9"],"updated":true},{"value":"","maybes":["1","6"],"updated":true},{"value":"5","maybes":["1","5","6","9"],"updated":true}]')
-sudoku.load('puzzle');
+localStorage.setItem('puzzle', '[{"value":"","maybes":["1","2","3","7","8"],"updated":true},{"value":"","maybes":["1","3","8","9"],"updated":true},{"value":"","maybes":["7","8","9"],"updated":true},{"value":"","maybes":["1","3","6","7","9"],"updated":true},{"value":"","maybes":["1","3","6","7","9"],"updated":true},{"value":"","maybes":["3","6","7"],"updated":true},{"value":"4","maybes":["3","4","6","8"],"updated":true},{"value":"5","maybes":["2","3","5","6"],"updated":true},{"value":"","maybes":["2","3","6","8"],"updated":true},{"value":"","maybes":["2","3","5","8"],"updated":true},{"value":"","maybes":["3","4","5","8","9"],"updated":true},{"value":"6","maybes":["4","5","6","8","9"],"updated":true},{"value":"","maybes":["3","9"],"updated":true},{"value":"","maybes":["3","4","9"],"updated":true},{"value":"","maybes":["3","4"],"updated":true},{"value":"","maybes":["3","8"],"updated":true},{"value":"7","maybes":["2","3","7"],"updated":true},{"value":"1","maybes":["1","2","3","8"],"updated":true},{"value":"","maybes":["1","3","7"],"updated":true},{"value":"","maybes":["1","3","4"],"updated":true},{"value":"","maybes":["4","7"],"updated":true},{"value":"5","maybes":["1","3","5","6","7"],"updated":true},{"value":"2","maybes":["1","2","3","4","6","7"],"updated":true},{"value":"8","maybes":["3","4","6","7","8"],"updated":true},{"value":"","maybes":["3","6"],"updated":true},{"value":"","maybes":["3","6"],"updated":true},{"value":"9","maybes":["3","6","9"],"updated":true},{"value":"","maybes":["1","5"],"updated":true},{"value":"","maybes":["1","4","5"],"updated":true},{"value":"2","maybes":["2","4","5"],"updated":true},{"value":"","maybes":["1","3","6","7"],"updated":true},{"value":"","maybes":["1","3","4","5","6","7"],"updated":true},{"value":"9","maybes":["3","4","5","6","7","9"],"updated":true},{"value":"","maybes":["3","6"],"updated":true},{"value":"8","maybes":["1","3","4","6","8"],"updated":true},{"value":"","maybes":["3","4","6"],"updated":true},{"value":"6","maybes":["1","6","8"],"updated":true},{"value":"","maybes":["1","4","8","9"],"updated":true},{"value":"3","maybes":["3","4","8","9"],"updated":true},{"value":"","maybes":["1","2"],"updated":true},{"value":"","maybes":["1","4"],"updated":true},{"value":"","maybes":["2","4"],"updated":true},{"value":"7","maybes":["7","9"],"updated":true},{"value":"","maybes":["1","4","9"],"updated":true},{"value":"5","maybes":["4","5"],"updated":true},{"value":"","maybes":["1","5"],"updated":true},{"value":"7","maybes":["1","4","5","7","9"],"updated":true},{"value":"","maybes":["4","5","9"],"updated":true},{"value":"8","maybes":["1","3","6","8"],"updated":true},{"value":"","maybes":["1","3","4","5","6"],"updated":true},{"value":"","maybes":["3","4","5","6"],"updated":true},{"value":"2","maybes":["2","3","6","9"],"updated":true},{"value":"","maybes":["1","3","4","6","9"],"updated":true},{"value":"","maybes":["3","4","6"],"updated":true},{"value":"9","maybes":["3","5","7","9"],"updated":true},{"value":"","maybes":["3","5"],"updated":true},{"value":"","maybes":["5","7"],"updated":true},{"value":"4","maybes":["2","3","4","6","7"],"updated":true},{"value":"8","maybes":["3","5","6","7","8"],"updated":true},{"value":"1","maybes":["1","2","3","5","6","7"],"updated":true},{"value":"","maybes":["3","5","6"],"updated":true},{"value":"","maybes":["2","3","6"],"updated":true},{"value":"","maybes":["2","3","6","7"],"updated":true},{"value":"4","maybes":["3","4","5","7","8"],"updated":true},{"value":"2","maybes":["2","3","5","8"],"updated":true},{"value":"","maybes":["5","7","8"],"updated":true},{"value":"","maybes":["3","6","7","9"],"updated":true},{"value":"","maybes":["3","5","6","7","9"],"updated":true},{"value":"","maybes":["3","5","6","7"],"updated":true},{"value":"1","maybes":["1","3","5","6","8","9"],"updated":true},{"value":"","maybes":["3","6","9"],"updated":true},{"value":"","maybes":["3","6","7","8"],"updated":true},{"value":"","maybes":["3","5","7","8"],"updated":true},{"value":"6","maybes":["3","5","6","8"],"updated":true},{"value":"1","maybes":["1","5","7","8"],"updated":true},{"value":"","maybes":["2","3","7","9"],"updated":true},{"value":"","maybes":["3","5","7","9"],"updated":true},{"value":"","maybes":["2","3","5","7"],"updated":true},{"value":"","maybes":["3","5","8","9"],"updated":true},{"value":"","maybes":["2","3","4","9"],"updated":true},{"value":"","maybes":["2","3","4","7","8"],"updated":true}]')
+//sudoku.load('puzzle');
