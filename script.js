@@ -275,7 +275,8 @@ var sudoku = (function() {
 		cells: [],
 		config: {
 			visuals: 10,
-			linecheck: true
+			linecheck: true,
+			treesearch: false
 		},
 		history: [],
 
@@ -303,7 +304,7 @@ var sudoku = (function() {
 						else cell.box = 8;
 					}
 					cell.el = document.createElement('input');
-					cell.el.setAttribute('type','text');
+					cell.el.setAttribute('type','number');
 					cell.el.setAttribute('class', 'cell');
 					cell.el.setAttribute('maxlength','1');
 					var box = document.getElementById(cell.box);
@@ -354,6 +355,153 @@ var sudoku = (function() {
 				}
 			}
 		},
+
+		solve: function () {
+			return new Promise( (resolve, reject) => {
+				var iterations = 0,
+						loop = () => {
+						var start = sudoku.cells.getBlanks().length;
+						sudoku.run(sudoku.update, true)
+							.then( blanks => {
+								if (blanks) return sudoku.run(sudoku.search, true, 'box');
+							})
+							.then( blanks => {
+								if (blanks) return sudoku.run(sudoku.search, true, 'x');
+							})
+							.then( blanks => {
+								if (blanks) return sudoku.run(sudoku.search, true, 'y');
+							})
+							.then( blanks => {
+								var found = start - sudoku.cells.getBlanks().length;
+								if (blanks && found && iterations < 10) {
+									iterations++;
+									loop()
+								}
+								else {
+									if (blanks) reject('solve failed after ' + iterations + ' goes');
+									else resolve('solve succeeded in ' + iterations + ' goes');
+									console.timeEnd('Solve');
+									console.log(blanks)
+								}
+							})
+							.catch( e => {
+								console.log(e);
+							});
+						}
+				loop()
+			}).then((e) => { console.log('yay')}, (e) => {
+				console.log(e);
+				if (sudoku.config.treesearch) {
+					console.log('starting treesearch');
+					sudoku.treesearch();
+				}
+			})
+		},
+
+		treesearch: function () {
+			var start = this.savestep(),
+					index = 0;
+					doubles = this.cells.getBlanks()
+						.filter( cell => {
+							return [...cell.maybes].length === 2
+						});
+			if (doubles.length) {
+				var double = doubles[0],
+						options = [...double.maybes],
+						loop = (options) => {
+							this.load('history', start);
+							double.is(options[index]);
+							index++;
+							this.solve().then(
+								(m) => {console.log(m)},
+								(e) => { loop(options)}
+							)
+						}
+				loop(options);
+			}
+		},
+
+		// Takes a generator method (bound to sudoku object), creates an iterator.
+		// Returns a promise resolved when iterator is done or, if repeat flag is
+		// set - self invokes until no further values are found.
+		run: function (method, repeat, ...args) {
+			var self = this,
+					visuals = this.config.visuals,
+					method = method.bind(this);
+			return new Promise(function (resolve, reject) {
+				if (visuals && !repeat) {
+					self.runAsync(method, args[0]).then(
+						found => { resolve(found) },
+						reason => { reject(reason) }
+					)
+				}
+				else if (visuals && repeat) {
+					let loop = () => {
+						self.runAsync(method, args[0])
+							.then( found => {
+								var blanks = self.cells.getBlanks().length;
+								if (found && blanks) loop()
+								else resolve(blanks)
+							}, (reason) => {
+								reject(reason)
+							})
+					};
+					loop()
+				}
+				else if (!visuals && repeat) {
+					let loops = 0;
+					while (self.runSync(method, args[0])) {
+						loops++
+					}
+					resolve(self.cells.getBlanks().length)
+				}
+				else if (!visuals && !repeat) {
+					self.solveSync(method, args[0]);
+					resolve(self.cells.getBlanks().length)
+				}
+				else console.log('you slipped through the net')
+			});
+		},
+
+		// Calls next on iterator at setintervals until generator is done or
+		// _stop flag is set to true.
+		// Fulfils promise with number of values found in last run
+		// Rejects if stopped
+		runAsync: function (method,...args) {
+			var self = this,
+				speed = this.config.visuals,
+				iterator = method.apply(this, args),
+				start = this.cells.getBlanks().length;
+			return new Promise(function (resolve, reject) {
+				self._timer = window.setInterval(() => {
+					var step = iterator.next();
+					if (self._stop && step.value >= 0 || step.done) {
+						window.clearInterval(self._timer);
+						self._timer = null;
+						if (self._stop) {
+							reject('Scan stopped');
+							self._stop = false;
+							self.cells.all('highlight', 'white');
+						}
+						else resolve(step.value);
+					}
+				}, speed);
+			});
+		},
+
+		// Synchronous / blocking iterator method, returns number of values
+		// found
+		runSync: function (method,...args) {
+			var self = this,
+				iterator = method.apply(this, args);
+
+			while (true) {
+				var state = iterator.next();
+				if (state.done) break;
+			}
+			return state.value
+		},
+
 
 		// Search every blank cells' row, column and box and remove any values
 		// found from it's maybes list. If only one remains, enter it.
@@ -479,6 +627,7 @@ var sudoku = (function() {
 			}
 			this.history.push(sudoku.save());
 			this.history.current = this.history.length - 1;
+			return this.history.current
 		},
 
 		// Arrow key event handler, lots of room for out by 1 hell but works ok
@@ -547,89 +696,8 @@ var sudoku = (function() {
 				sudoku.history = [];
 				sudoku.savestep()
 			}
-		},
-
-		// Takes a generator method (bound to sudoku object), creates an iterator.
-		// Returns a promise resolved when iterator is done or, if repeat flag is
-		// set - self invokes until no further values are found.
-		solve: function (method, repeat, ...args) {
-			var self = this,
-					visuals = this.config.visuals,
-					method = method.bind(this);
-			return new Promise(function (resolve, reject) {
-				if (visuals && !repeat) {
-					self.solveAsync(method, args[0]).then(
-						found => { resolve(found) },
-						reason => { reject(reason) }
-					)
-				}
-				else if (visuals && repeat) {
-					let loop = () => {
-						self.solveAsync(method, args[0])
-							.then( found => {
-								var blanks = self.cells.getBlanks().length;
-								if (found && blanks) loop()
-								else resolve(blanks)
-							}, (reason) => {
-								reject(reason)
-							})
-					};
-					loop()
-				}
-				else if (!visuals && repeat) {
-					let loops = 0;
-					while (self.solveSync(method, args[0])) {
-						loops++
-					}
-					resolve(self.cells.getBlanks().length)
-				}
-				else if (!visuals && !repeat) {
-					self.solveSync(method, args[0]);
-					resolve(self.cells.getBlanks().length)
-				}
-				else console.log('you slipped through the net')
-			});
-		},
-
-		// Calls next on iterator at setintervals until generator is done or
-		// _stop flag is set to true.
-		// Fulfils promise with number of values found in last run
-		// Rejects if stopped
-		solveAsync: function (method,...args) {
-			var self = this,
-				speed = this.config.visuals,
-				iterator = method.apply(this, args),
-				start = this.cells.getBlanks().length;
-			return new Promise(function (resolve, reject) {
-				self._timer = window.setInterval(() => {
-					var step = iterator.next();
-					if (self._stop && step.value >= 0 || step.done) {
-						window.clearInterval(self._timer);
-						self._timer = null;
-						if (self._stop) {
-							reject('Scan stopped');
-							self._stop = false;
-							self.cells.all('highlight', 'white');
-						}
-						else resolve(step.value);
-					}
-				}, speed);
-			});
-		},
-
-		// Synchronous / blocking iterator method, returns number of values
-		// found
-		solveSync: function (method,...args) {
-			var self = this,
-				iterator = method.apply(this, args);
-
-			while (true) {
-				var state = iterator.next();
-				if (state.done) break;
-			}
-			return state.value
 		}
-	};
+	}
 
 	// Event listeners
 	document.getElementById('clear').addEventListener('click', () => {
@@ -685,6 +753,19 @@ var sudoku = (function() {
 		}
 	});
 
+	document.getElementById('treesearch').addEventListener('click', (e) => {
+		if (e.target.classList.contains('btn-danger')) {
+			sudoku.config.treesearch = true;
+			e.target.classList.remove('btn-danger');
+			e.target.classList.add('btn-success');
+		}
+		else {
+			sudoku.config.treesearch = false;
+			e.target.classList.remove('btn-success');
+			e.target.classList.add('btn-danger');
+		}
+	});
+
 	$call(document.getElementsByClassName('solve'), 'addEventListener', 'click',
 	(e) => {
 
@@ -700,7 +781,7 @@ var sudoku = (function() {
 		if (!sudoku._timer) {
 
 			var run = (method, arg) => {
-				sudoku.solve(method, false, arg)
+				sudoku.run(method, false, arg)
 					.then(done)
 					.catch( (e) => { console.log(e); done() });
 			}
@@ -724,18 +805,9 @@ var sudoku = (function() {
 					break;
 				case 'Solve':
 					console.time('Solve');
-					sudoku.solve(sudoku.update, true)
+					sudoku.solve()
 						.then( blanks => {
-							if (blanks) return sudoku.solve(sudoku.search, true, 'box');
-						})
-						.then( blanks => {
-							if (blanks) return sudoku.solve(sudoku.search, true, 'x');
-						})
-						.then( blanks => {
-							if (blanks) return sudoku.solve(sudoku.search, true, 'y');
-						})
-						.then( blanks => {
-							done()
+							done();
 							if (blanks) {
 								console.timeEnd('Solve');
 								console.log('Solve failed');

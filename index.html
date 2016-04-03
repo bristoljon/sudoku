@@ -31,7 +31,7 @@
   	margin: 15px auto;
   	width: 332px;
   	height: 332px;
-    border: 1px grey solid;
+    border: 1px blue solid;
   }
 
   .puzzle * {
@@ -70,6 +70,13 @@
 	#instructions *{
 		text-align: left;
 	}
+
+  input::-webkit-outer-spin-button,
+  input::-webkit-inner-spin-button {
+      /* display: none; <- Crashes Chrome on hover */
+      -webkit-appearance: none;
+      margin: 0; /* <-- Apparently some margin are still there even though it's hidden */
+  }
 
     </style>
 
@@ -112,6 +119,7 @@
 		<input type="button" class="btn btn-success solve" value="Column Search"/>
 		<input type="button" class="btn btn-success solve" value="Row Search"/>
 		<input type="button" class="btn btn-success solve" value="Solve"/>
+    <input type="button" class="btn btn-danger" id="treesearch" value="Tree Search"/>
 	</div>
 
   <div class="history">
@@ -140,9 +148,11 @@
 			<ul>
 				<li><strong>Not Search</strong> - For every blank that has changed state, remove all the digits in that cells row, column and box from it's 'maybes' list. If only one remains, enter it.</li>
 				<li><strong>Box Search</strong> - For each box, create list of cells where each digit could go. If only one place, enter it. If only 2 places, and they are on the same row or column, update the rest of the group's maybes lists</li>
+        <li><strong>Line Check</strong> - Additional check after box search, if digit can only be in 2 or 3 cells on the same row or column, then it can't be anywhere else on that line</li>
 				<li><strong>Column Search</strong> - For each column, create list of cells where each digit could go. If only one place, enter it.</li>
 				<li><strong>Row Search</strong> - For each row, create list of cells where each digit could go. If only one place, enter it.</li>
 				<li><strong>Solve</strong> - Not, Box, Column and Row search until no blanks remain or maximum iterations reached. Now runs with visuals on thanks to async promises.</li>
+        <li><strong>Tree Search</strong> - Triggered if 'Solve' fails, finds a cell that can only be one of 2 digits and attempts to solve each scenario</li>
 			</ul>
 		</p>
 		<p>Use the arrow keys to scroll backwards and forward digit by digit</p>
