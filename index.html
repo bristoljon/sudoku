@@ -16,10 +16,14 @@
 	* {
 		padding: 0;
 		margin: 0;
-		text-align: center
+		text-align: center;
 	}
 
-	#controls.blue{
+  body {
+    padding-top:10px;
+  }
+
+	#options.blue{
 		margin-left:15px;
 	}
 
@@ -70,8 +74,7 @@
     </style>
 
 <body>
-    <h2 class="text-center">Sudoku Solver</h2>
-	<div id="controls">
+	<div id="options">
 
 		<input type="button" class="btn btn-danger" id="clear" value="Clear"/>
 		<input type="button" class="btn btn-danger" id="save" value="Save"/>
@@ -90,7 +93,6 @@
 		</div>
 	</div>
 
-	<div id="popover"></div>
 	<div class="puzzle">
 		<div class='box' id="0"></div>
 		<div class='box' id="1"></div>
@@ -102,21 +104,32 @@
 		<div class='box' id="7"></div>
 		<div class='box' id="8"></div>
 	</div>
+
 	<div class="text-center controls">
 		<input type="button" class="btn btn-success solve" value="Not Search"/>
 		<input type="button" class="btn btn-success solve" value="Box Search"/>
+    <input type="button" class="btn btn-success" id="linecheck" value="Line Check"/>
 		<input type="button" class="btn btn-success solve" value="Column Search"/>
 		<input type="button" class="btn btn-success solve" value="Row Search"/>
 		<input type="button" class="btn btn-success solve" value="Solve"/>
 	</div>
-	<div class="history">
+
+  <div class="history">
 		<button id="backStep" type="button" class="btn btn-default" aria-label="Left Align">
 			<span class="glyphicon glyphicon-step-backward" aria-hidden="true"></span>
 		</button>
+
 		<button id="forwardStep" type="button" class="btn btn-default" aria-label="Left Align">
 			<span class="glyphicon glyphicon-step-forward" aria-hidden="true"></span>
 		</button>
 	</div>
+
+  <div id="popover"></div>
+
+
+
+
+
 	<div id="instructions">
 		<h4>Instructions</h4>
 		<p>Enter digits in the grid; you can use arrow keys on keyboard or click / touch.</p>

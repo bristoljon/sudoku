@@ -62,7 +62,28 @@ var sudoku = (function() {
 		return this;
 	};
 
-	// Custom jQuery selector replacements used
+	// Returns 'x' or 'y' if selection are all in the same one. Used by paircheck
+	Array.prototype.areSameGroup = function () {
+		var last = this[this.length - 1];
+		if (this.every( cell => { return cell.x === last.x })) return 'x';
+		if (this.every( cell => { return cell.y === last.y })) return 'y';
+		return false
+	};
+
+	// Removes cells from selection, expects array of cells. Used by paircheck.
+	// Bit of a hack actually, needs revisiting
+	Array.prototype.removeCells = function (cells) {
+		return this.filter( cell => {
+			var include = true;
+			for (let i =0; i < cells.length; i++) {
+				if (cell.id === cells[i].id) include = false
+			}
+			return include
+		})
+	};
+
+	// Custom jQuery selector replacements to allow setting attributes of
+	// HTMLCollections
 	var $set = (selection, attribute, flag) => {
 		var type = Object.prototype.toString.call( selection );
 		if (type === '[object HTMLCollection]') {
@@ -73,7 +94,8 @@ var sudoku = (function() {
 		else console.log('Not an HTMLCollection')
 	};
 
-
+	// Same but for calling methods of elements in an HTMLCollection, used
+	// for adding event listeners to solve buttons.
 	var $call = (selection, method, ...args) => {
 		var type = Object.prototype.toString.call( selection );
 		if (type === '[object HTMLCollection]') {
@@ -84,6 +106,17 @@ var sudoku = (function() {
 		else console.log('Not an HTMLCollection')
 	};
 
+	// Handy little check to determine whether yield works. Thanks SO! Although it
+	// returns false for Chrome but yield works (just yield* that doesn't)
+	var can_yield = (function(){
+    try {
+        return eval("!!Function('yield true;')().next()");
+    }
+    catch(e) {
+        return false;
+    }
+	})();
+
 	// Cell constructor that adds unique ID to each one
 	var Cell = (function() {
 		var counter = 0;
@@ -93,7 +126,8 @@ var sudoku = (function() {
 			this.id = counter++;
 			this.maybes = new Set(DIGITS);
 
-			// Wrap in proxy to enable visualisation of 'thinking'
+			// Wrap in proxy to enable visualisation of 'thinking'. Actually all it
+			// does now is update the DOM when the cell value is set.
 			var proxy = new Proxy(this, {
 				set: function (target, property, value) {
 					switch (property) {
@@ -124,7 +158,6 @@ var sudoku = (function() {
 
 	// Key press event handler (bound to cell object)
 	Cell.prototype.navigate = function (event) {
-		//event.preventDefault();
 		var current = this.value;
 		switch (event.keyCode) {
 			case 37: // Left
@@ -164,7 +197,7 @@ var sudoku = (function() {
 			default:
 				var key = String.fromCharCode(event.keyCode);
 
-				if (DIGITS.has(key) && this.couldBe(key)) {
+				if (this.couldBe(key)) {
 					if (key !== current && current !== '') {
 						// Add the deleted digit to the groups' maybes lists
 						this.updateGroup(current);
@@ -195,6 +228,14 @@ var sudoku = (function() {
 	Cell.prototype.canBe = function (digit)  {
 		this.maybes.add(digit);
 		this.updated = true;
+	};
+
+	// Checks maybes set, if only one digit, returns it. Otherwise false
+	Cell.prototype.canOnlyBe = function (digit)  {
+		if ([...this.maybes].length === 1) {
+			return [...this.maybes][0]
+		}
+		return false
 	};
 
 	// Sets the cell value and updates its groups
@@ -233,11 +274,14 @@ var sudoku = (function() {
 	var sudoku = {
 		cells: [],
 		config: {
-			visuals: 10
+			visuals: 10,
+			linecheck: true
 		},
 		history: [],
 
-		// Generates an array of cells with x, y and box attributes and creates linked
+		// Generates an array of cells with x, y and box attributes
+		// Creates an input element and appends it to its box
+		// Adds keypress event listeners (and prevents deafults for mobile)
 		init: function () {
 
 			for (var y=0; y<9; y++ ) {
@@ -275,7 +319,6 @@ var sudoku = (function() {
 					cell.el.addEventListener('click', cell.showPopover.bind(cell));
 					cell.el.addEventListener('mouseover', cell.showPopover.bind(cell));
 
-					cell.value = cell.el.value;
 					this.cells.push(cell);
 				}
 			}
@@ -311,9 +354,11 @@ var sudoku = (function() {
 				}
 			}
 		},
-		// Search every blank cells' row, column and box and add any values found to 'not' list
+
+		// Search every blank cells' row, column and box and remove any values
+		// found from it's maybes list. If only one remains, enter it.
 		update: function* () {
-			var blanks = this.getBlanks().getUpdated(),
+			var blanks = this.cells.getBlanks().getUpdated(),
 					changed = 0;
 			for (var i = 0; i < blanks.length; i++) {
 				var blank = blanks[i];
@@ -327,7 +372,7 @@ var sudoku = (function() {
 				// Remove any values found in that cells' groups from it's maybes list
 				for (var j = 0; j < cells.length; j++) {
 					var cell = cells[j],
-						digit = cell.value;
+							digit = cell.value;
 
 					if (digit !== '') {
 						cell.highlight('orange');
@@ -338,8 +383,8 @@ var sudoku = (function() {
 					cell.highlight('white');
 				}
 				// Sets value to digit in maybes list if only one remains
-				if (blank.maybes.length === 1) {
-					blank.is(blank.maybes[0]);
+				if (blank.canOnlyBe()) {
+					blank.is(blank.canOnlyBe())
 					changed++;
 				}
 				blank.highlight('white');
@@ -349,7 +394,7 @@ var sudoku = (function() {
 		},
 
 		// Solve method that checks the possible position for each digit in the group
-		// If only one found, enters it. Yield statements are breakponts for visual
+		// If only one found, enters it. Yield statements are breakponts for visuals
 		// yield(changed) acts as stop point if user cancels search
 		search: function* (type) {
 			var groups = [],
@@ -364,7 +409,7 @@ var sudoku = (function() {
 					let digit = DIGITS[j];
 					if (!group.has(digit)) {
 						var blanks = this.getBlanks(group),
-							maybes = [];
+								maybes = [];
 						for (var k = 0; k < blanks.length; k++) {
 							let blank = blanks[k];
 							blank.el.value = digit;
@@ -375,44 +420,59 @@ var sudoku = (function() {
 							else {
 								blank.highlight('red');
 							}
-							yield;
+							yield(changed);
 							blank.el.value = '';
 							blank.highlight('white');
-
 						};
 						if (maybes.length === 1) {
 							maybes[0].is(digit);
 							changed ++;
 						}
-						else if (maybes.length === 2 && type === 'box') {
-							sudoku.paircheck(maybes, digit);
+						if (type === 'box' && this.config.linecheck) {
+							if (maybes.length === 2 || maybes.length === 3) {
+								yield* this.linecheck(maybes, digit);
+							}
 						}
-						yield(changed)
+						yield(changed);
+						maybes.all('highlight', 'white');
 					}
 				}
 			}
 			return changed;
 		},
 
-		// If box search determines a digit can only be in 2 cells, this method checks if those
-		// cells are in the same row or column and updates the rest of the row accordingly
-		paircheck: function (maybes, digit) {
+		// If box search determines a digit can only be in 2 or 3 cells, this method
+		// checks if those cells are in the same row or column and updates the rest
+		// of the row or column accordingly
+		linecheck: function* (maybes, digit) {
+			// Check that all cells are on the same row or column
+			var group = maybes.areSameGroup();
+			if (group) {
+				maybes.all('highlight', 'green');
+				yield;
+				let others = maybes[0]
+					.getRemaining(group)
+					.getBlanks()
+					.removeCells(maybes);
 
-			['x','y'].forEach( (group) => {
-				if (maybes[0][group] === maybes[1][group]) {
-					let others = maybes[0].getRemaining([group]);
-					for (let i = 0; i < others.length; i++) {
-						let other = others[i];
-						if (other.id !== maybes[1].id) {
-							other.cantBe(digit)
-						}
+				for (let i = 0; i < others.length; i++) {
+					let other = others[i];
+
+					other.highlight('pink');
+					other.cantBe(digit);
+					yield;
+					if (other.canOnlyBe()) {
+						other.is(other.canOnlyBe())
+						yield(1);
 					}
+					other.highlight('white')
 				}
-			})
+			}
+			maybes.all('highlight', 'white');
 		},
 
-		// Called every time a value is found. If current step is less than history length,
-		// it deletes the remaining history and adds from that point.
+		// Called every time a value is found. If current step is less than history
+		// length, it deletes the remaining history and adds from that point.
 		savestep: function () {
 			if (this.history.current < this.history.length - 1) {
 				this.history.length = this.history.current + 1
@@ -538,7 +598,7 @@ var sudoku = (function() {
 		solveAsync: function (method,...args) {
 			var self = this,
 				speed = this.config.visuals,
-				iterator = method(args[0]),
+				iterator = method.apply(this, args),
 				start = this.cells.getBlanks().length;
 			return new Promise(function (resolve, reject) {
 				self._timer = window.setInterval(() => {
@@ -561,7 +621,7 @@ var sudoku = (function() {
 		// found
 		solveSync: function (method,...args) {
 			var self = this,
-				iterator = method(args[0]);
+				iterator = method.apply(this, args);
 
 			while (true) {
 				var state = iterator.next();
@@ -593,7 +653,7 @@ var sudoku = (function() {
 		e.target.classList.add('active');
 		switch (e.target.innerText) {
 			case 'Slow':
-				sudoku.config.visuals = 500
+				sudoku.config.visuals = 250
 				break;
 			case 'Fast':
 				sudoku.config.visuals = 10;
@@ -610,6 +670,19 @@ var sudoku = (function() {
 
 	document.getElementById('forwardStep').addEventListener('click', () => {
 		sudoku.step('forward')
+	});
+
+	document.getElementById('linecheck').addEventListener('click', (e) => {
+		if (e.target.classList.contains('btn-danger')) {
+			sudoku.config.linecheck = true;
+			e.target.classList.remove('btn-danger');
+			e.target.classList.add('btn-success');
+		}
+		else {
+			sudoku.config.linecheck = false;
+			e.target.classList.remove('btn-success');
+			e.target.classList.add('btn-danger');
+		}
 	});
 
 	$call(document.getElementsByClassName('solve'), 'addEventListener', 'click',
@@ -694,4 +767,4 @@ var sudoku = (function() {
 
 sudoku.init();
 localStorage.setItem('puzzle', '[{"value":"","maybes":["1","2","3","7","8"],"updated":true},{"value":"","maybes":["1","3","8","9"],"updated":true},{"value":"","maybes":["7","8","9"],"updated":true},{"value":"","maybes":["1","3","6","7","9"],"updated":true},{"value":"","maybes":["1","3","6","7","9"],"updated":true},{"value":"","maybes":["3","6","7"],"updated":true},{"value":"4","maybes":["3","4","6","8"],"updated":true},{"value":"5","maybes":["2","3","5","6"],"updated":true},{"value":"","maybes":["2","3","6","8"],"updated":true},{"value":"","maybes":["2","3","5","8"],"updated":true},{"value":"","maybes":["3","4","5","8","9"],"updated":true},{"value":"6","maybes":["4","5","6","8","9"],"updated":true},{"value":"","maybes":["3","9"],"updated":true},{"value":"","maybes":["3","4","9"],"updated":true},{"value":"","maybes":["3","4"],"updated":true},{"value":"","maybes":["3","8"],"updated":true},{"value":"7","maybes":["2","3","7"],"updated":true},{"value":"1","maybes":["1","2","3","8"],"updated":true},{"value":"","maybes":["1","3","7"],"updated":true},{"value":"","maybes":["1","3","4"],"updated":true},{"value":"","maybes":["4","7"],"updated":true},{"value":"5","maybes":["1","3","5","6","7"],"updated":true},{"value":"2","maybes":["1","2","3","4","6","7"],"updated":true},{"value":"8","maybes":["3","4","6","7","8"],"updated":true},{"value":"","maybes":["3","6"],"updated":true},{"value":"","maybes":["3","6"],"updated":true},{"value":"9","maybes":["3","6","9"],"updated":true},{"value":"","maybes":["1","5"],"updated":true},{"value":"","maybes":["1","4","5"],"updated":true},{"value":"2","maybes":["2","4","5"],"updated":true},{"value":"","maybes":["1","3","6","7"],"updated":true},{"value":"","maybes":["1","3","4","5","6","7"],"updated":true},{"value":"9","maybes":["3","4","5","6","7","9"],"updated":true},{"value":"","maybes":["3","6"],"updated":true},{"value":"8","maybes":["1","3","4","6","8"],"updated":true},{"value":"","maybes":["3","4","6"],"updated":true},{"value":"6","maybes":["1","6","8"],"updated":true},{"value":"","maybes":["1","4","8","9"],"updated":true},{"value":"3","maybes":["3","4","8","9"],"updated":true},{"value":"","maybes":["1","2"],"updated":true},{"value":"","maybes":["1","4"],"updated":true},{"value":"","maybes":["2","4"],"updated":true},{"value":"7","maybes":["7","9"],"updated":true},{"value":"","maybes":["1","4","9"],"updated":true},{"value":"5","maybes":["4","5"],"updated":true},{"value":"","maybes":["1","5"],"updated":true},{"value":"7","maybes":["1","4","5","7","9"],"updated":true},{"value":"","maybes":["4","5","9"],"updated":true},{"value":"8","maybes":["1","3","6","8"],"updated":true},{"value":"","maybes":["1","3","4","5","6"],"updated":true},{"value":"","maybes":["3","4","5","6"],"updated":true},{"value":"2","maybes":["2","3","6","9"],"updated":true},{"value":"","maybes":["1","3","4","6","9"],"updated":true},{"value":"","maybes":["3","4","6"],"updated":true},{"value":"9","maybes":["3","5","7","9"],"updated":true},{"value":"","maybes":["3","5"],"updated":true},{"value":"","maybes":["5","7"],"updated":true},{"value":"4","maybes":["2","3","4","6","7"],"updated":true},{"value":"8","maybes":["3","5","6","7","8"],"updated":true},{"value":"1","maybes":["1","2","3","5","6","7"],"updated":true},{"value":"","maybes":["3","5","6"],"updated":true},{"value":"","maybes":["2","3","6"],"updated":true},{"value":"","maybes":["2","3","6","7"],"updated":true},{"value":"4","maybes":["3","4","5","7","8"],"updated":true},{"value":"2","maybes":["2","3","5","8"],"updated":true},{"value":"","maybes":["5","7","8"],"updated":true},{"value":"","maybes":["3","6","7","9"],"updated":true},{"value":"","maybes":["3","5","6","7","9"],"updated":true},{"value":"","maybes":["3","5","6","7"],"updated":true},{"value":"1","maybes":["1","3","5","6","8","9"],"updated":true},{"value":"","maybes":["3","6","9"],"updated":true},{"value":"","maybes":["3","6","7","8"],"updated":true},{"value":"","maybes":["3","5","7","8"],"updated":true},{"value":"6","maybes":["3","5","6","8"],"updated":true},{"value":"1","maybes":["1","5","7","8"],"updated":true},{"value":"","maybes":["2","3","7","9"],"updated":true},{"value":"","maybes":["3","5","7","9"],"updated":true},{"value":"","maybes":["2","3","5","7"],"updated":true},{"value":"","maybes":["3","5","8","9"],"updated":true},{"value":"","maybes":["2","3","4","9"],"updated":true},{"value":"","maybes":["2","3","4","7","8"],"updated":true}]')
-//sudoku.load('puzzle');
+sudoku.load('puzzle');
