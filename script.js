@@ -221,7 +221,12 @@ var sudoku = (function() {
 	// Removes passed digit from maybes list and flags as updated
 	Cell.prototype.cantBe = function (digit)  {
 		this.maybes.delete(digit);
-		this.updated = true;
+		if (sudoku.config.notcheck &&
+				!this.value &&
+				this.canOnlyBe()) {
+						this.is(this.canOnlyBe());
+				}
+		else this.updated = true;
 	};
 
 	// Adds digit to maybes list and flags as updated
@@ -231,7 +236,7 @@ var sudoku = (function() {
 	};
 
 	// Checks maybes set, if only one digit, returns it. Otherwise false
-	Cell.prototype.canOnlyBe = function (digit)  {
+	Cell.prototype.canOnlyBe = function ()  {
 		if ([...this.maybes].length === 1) {
 			return [...this.maybes][0]
 		}
@@ -276,7 +281,8 @@ var sudoku = (function() {
 		config: {
 			visuals: 10,
 			linecheck: true,
-			treesearch: false
+			treesearch: false,
+			notcheck: true
 		},
 		history: [],
 
@@ -325,16 +331,16 @@ var sudoku = (function() {
 			}
 		},
 
-		getBlanks: function (selection) {
-			var cells = selection || this.cells,
-				ar = [];
-			for (var i = 0; i<cells.length; i++) {
-				if (cells[i].value === '') {
-					ar.push(cells[i])
-				}
-			}
-			return ar
-		},
+		// getBlanks: function (selection) {
+		// 	var cells = selection || this.cells,
+		// 		ar = [];
+		// 	for (var i = 0; i<cells.length; i++) {
+		// 		if (cells[i].value === '') {
+		// 			ar.push(cells[i])
+		// 		}
+		// 	}
+		// 	return ar
+		// },
 
 		getGroup: function (group, id) {
 			var cells = this.cells,
@@ -390,7 +396,6 @@ var sudoku = (function() {
 						}
 				loop()
 			}).then((e) => { console.log('yay')}, (e) => {
-				console.log(e);
 				if (sudoku.config.treesearch) {
 					console.log('starting treesearch');
 					sudoku.treesearch();
@@ -456,7 +461,7 @@ var sudoku = (function() {
 					resolve(self.cells.getBlanks().length)
 				}
 				else if (!visuals && !repeat) {
-					self.solveSync(method, args[0]);
+					self.runSync(method, args[0]);
 					resolve(self.cells.getBlanks().length)
 				}
 				else console.log('you slipped through the net')
@@ -556,7 +561,7 @@ var sudoku = (function() {
 				for (var j = 0; j < DIGITS.length; j++) {
 					let digit = DIGITS[j];
 					if (!group.has(digit)) {
-						var blanks = this.getBlanks(group),
+						var blanks = group.getBlanks(),
 								maybes = [];
 						for (var k = 0; k < blanks.length; k++) {
 							let blank = blanks[k];
@@ -738,6 +743,19 @@ var sudoku = (function() {
 
 	document.getElementById('forwardStep').addEventListener('click', () => {
 		sudoku.step('forward')
+	});
+
+	document.getElementById('notcheck').addEventListener('click', (e) => {
+		if (e.target.classList.contains('btn-danger')) {
+			sudoku.config.notcheck = true;
+			e.target.classList.remove('btn-danger');
+			e.target.classList.add('btn-success');
+		}
+		else {
+			sudoku.config.notcheck = false;
+			e.target.classList.remove('btn-success');
+			e.target.classList.add('btn-danger');
+		}
 	});
 
 	document.getElementById('linecheck').addEventListener('click', (e) => {
