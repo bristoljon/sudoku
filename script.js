@@ -84,26 +84,18 @@ var sudoku = (function() {
 
 	// Custom jQuery selector replacements to allow setting attributes of
 	// HTMLCollections
-	var $set = (selection, attribute, flag) => {
-		var type = Object.prototype.toString.call( selection );
-		if (type === '[object HTMLCollection]') {
-			for (var i = 0; i < selection.length; i++) {
-				selection[i][attribute] = flag
-			}
+	HTMLCollection.prototype.set = function (attribute, flag) {
+		for (var i = 0; i < this.length; i++) {
+			this[i][attribute] = flag
 		}
-		else console.log('Not an HTMLCollection')
 	};
 
 	// Same but for calling methods of elements in an HTMLCollection, used
 	// for adding event listeners to solve buttons.
-	var $call = (selection, method, ...args) => {
-		var type = Object.prototype.toString.call( selection );
-		if (type === '[object HTMLCollection]') {
-			for (var i = 0; i < selection.length; i++) {
-				selection[i][method].apply(selection[i], args)
-			}
+	HTMLCollection.prototype.call = function (method, ...args) {
+		for (var i = 0; i < this.length; i++) {
+			this[i][method].apply(this[i], args)
 		}
-		else console.log('Not an HTMLCollection')
 	};
 
 	// Handy little check to determine whether yield works. Thanks SO! Although it
@@ -706,7 +698,7 @@ var sudoku = (function() {
 		sudoku.load('puzzle')
 	});
 
-	$call(document.getElementsByClassName('visual'), 'addEventListener', 'click',
+	document.getElementsByClassName('visual').call('addEventListener', 'click',
 	(e) => {
 		var buttons = document.getElementsByClassName('visual');
 		[].forEach.call(buttons, (el) => {
@@ -773,13 +765,13 @@ var sudoku = (function() {
 		}
 	});
 
-	$call(document.getElementsByClassName('solve'), 'addEventListener', 'click',
+	document.getElementsByClassName('solve').call('addEventListener', 'click',
 	(e) => {
 
 		var buttons = document.getElementsByClassName('solve');
-		$set(buttons, 'disabled', true);
+		buttons.set('disabled', true);
 		var done = () => {
-			$set(buttons, 'disabled', false);
+			buttons.set('disabled', false);
 			e.target.classList.remove('btn-danger');
 			e.target.classList.add('btn-success');
 		}
