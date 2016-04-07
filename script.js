@@ -98,17 +98,6 @@ var sudoku = (function() {
 		}
 	};
 
-	// Handy little check to determine whether yield works. Thanks SO! Although it
-	// returns false for Chrome but yield works (just yield* that doesn't)
-	var can_yield = (function(){
-    try {
-        return eval("!!Function('yield true;')().next()");
-    }
-    catch(e) {
-        return false;
-    }
-	})();
-
 	// Cell constructor that adds unique ID to each one
 	var Cell = (function() {
 		var counter = 0;
@@ -196,7 +185,11 @@ var sudoku = (function() {
 						this.maybes.add(current);
 					}
 					this.value = key;
-					this.updateGroup();
+					try {
+						this.updateGroup();
+					}
+					catch (e) { alert(e) }
+
 				}
 				else {
 					event.preventDefault()
@@ -213,7 +206,10 @@ var sudoku = (function() {
 	// Removes passed digit from maybes list and flags as updated
 	Cell.prototype.cantBe = function (digit)  {
 		this.maybes.delete(digit);
-		if (sudoku.config.notcheck &&
+		if (this.maybes.size < 1) {
+			throw new Error('Well one of us has made a mistake.. This puzzle appears to be unsolvable.')
+		}
+		else if (sudoku.config.notcheck &&
 				!this.value &&
 				this.canOnlyBe()) {
 						this.is(this.canOnlyBe());
@@ -229,7 +225,7 @@ var sudoku = (function() {
 
 	// Checks maybes set, if only one digit, returns it. Otherwise false
 	Cell.prototype.canOnlyBe = function ()  {
-		if ([...this.maybes].length === 1) {
+		if (this.maybes.size === 1) {
 			return [...this.maybes][0]
 		}
 		return false
@@ -365,23 +361,25 @@ var sudoku = (function() {
 									loop()
 								}
 								else {
-									if (blanks) reject('solve failed after ' + iterations + ' goes');
-									else resolve('solve succeeded in ' + iterations + ' goes');
-									console.timeEnd('Solve');
-									console.log(blanks)
+									resolve(blanks)
 								}
 							})
-							.catch( e => {
-								console.log(e);
-							});
 						}
 				loop()
-			}).then((e) => { console.log('yay')}, (e) => {
-				if (sudoku.config.treesearch) {
-					console.log('starting treesearch');
-					sudoku.treesearch();
+			}).then(
+				(blanks) => {
+					if (blanks && sudoku.config.treesearch) {
+						console.log('starting treesearch');
+						sudoku.treesearch();
+					}
+					else if (!blanks) {
+						console.log('Solve succeeded')
+					}
+					else {
+						return Promise.reject('Failed to solve. Try enabling Tree Search')
+					}
 				}
-			})
+			).catch( e => { alert(e) })
 		},
 
 		treesearch: function () {
