@@ -364,6 +364,7 @@ var sudoku = (function() {
 									resolve(blanks)
 								}
 							})
+							.catch( e => { reject(e) })
 						}
 				loop()
 			}).then(
@@ -379,7 +380,7 @@ var sudoku = (function() {
 						return Promise.reject('Failed to solve. Try enabling Tree Search')
 					}
 				}
-			).catch( e => { alert(e) })
+			)
 		},
 
 		treesearch: function () {
@@ -398,7 +399,7 @@ var sudoku = (function() {
 							this.load('history', start);
 							blank.is(options[index++]);
 							this.solve().then(
-								(m) => { console.log(m) },
+								(m) => { resolve(m) },
 								(e) => { loop(options) }
 							)
 						}
@@ -532,8 +533,7 @@ var sudoku = (function() {
 		search: function* (type) {
 			var groups = [],
 				changed = 0;
-
-			for (let i = 0; i < 10; i++) {
+			for (let i = 0; i < 9; i++) {
 				groups.push(this.getGroup(type, i))
 			}
 			for (let i = 0; i < groups.length; i++) {
@@ -557,11 +557,14 @@ var sudoku = (function() {
 							blank.el.value = '';
 							blank.highlight('white');
 						};
-						if (maybes.length === 1) {
+						if (maybes.length === 0) {
+							throw new Error(type + ' search failed: This puzzle appears to be unsolvable.')
+						}
+						else if (maybes.length === 1) {
 							maybes[0].is(digit);
 							changed ++;
 						}
-						if (type === 'box' && this.config.linecheck) {
+						else if (type === 'box' && this.config.linecheck) {
 							if (maybes.length === 2 || maybes.length === 3) {
 								yield* this.linecheck(maybes, digit);
 							}
@@ -781,7 +784,7 @@ var sudoku = (function() {
 			var run = (method, arg) => {
 				sudoku.run(method, false, arg)
 					.then(done)
-					.catch( (e) => { console.log(e); done() });
+					.catch( (e) => { alert(e); done() });
 			}
 
 			e.target.disabled = false;
@@ -805,21 +808,12 @@ var sudoku = (function() {
 					console.time('Solve');
 					sudoku.solve()
 						.then( blanks => {
+							console.log('done');
 							done();
-							if (blanks) {
-								console.timeEnd('Solve');
-								console.log('Solve failed');
-								console.log(blanks)
-							}
-							else {
-								console.timeEnd('Solve');
-								console.log('Solve succeeded');
-								console.log(blanks)
-							}
 						})
 						.catch( e => {
-							console.log(e);
 							done();
+							alert(e);
 						});
 					break;
 				default:
