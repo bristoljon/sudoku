@@ -370,7 +370,7 @@ var sudoku = (function() {
 				(blanks) => {
 					if (blanks && sudoku.config.treesearch) {
 						console.log('starting treesearch');
-						sudoku.treesearch();
+						return sudoku.treesearch();
 					}
 					else if (!blanks) {
 						console.log('Solve succeeded')
@@ -385,24 +385,25 @@ var sudoku = (function() {
 		treesearch: function () {
 			var start = this.savestep(),
 					index = 0;
-					doubles = this.cells.getBlanks()
-						.filter( cell => {
-							return [...cell.maybes].length === 2
+					blanks = this.cells.getBlanks()
+						.sort( (a,b) => {
+							return a.maybes.size - b.maybes.size
 						});
-			if (doubles.length) {
-				var double = doubles[0],
-						options = [...double.maybes],
+			return new Promise( (resolve, reject) => {
+				console.log('Tree search: ' + blanks[0].id);
+				var blank = blanks[0],
+						options = [...blank.maybes],
 						loop = (options) => {
+							console.log('Tree loop: ' + index);
 							this.load('history', start);
-							double.is(options[index]);
-							index++;
+							blank.is(options[index++]);
 							this.solve().then(
-								(m) => {console.log(m)},
-								(e) => { loop(options)}
+								(m) => { console.log(m) },
+								(e) => { loop(options) }
 							)
 						}
 				loop(options);
-			}
+			})
 		},
 
 		// Takes a generator method (bound to sudoku object), creates an iterator.
