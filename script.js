@@ -240,10 +240,10 @@ var sudoku = (function() {
 				color = 'chartreuse';
 				break;
 			case 'x':
-				color = 'orange';
+				color = 'deepskyblue';
 				break;
 			case 'y':
-				color = 'deepskyblue'
+				color = 'orange'
 				break;
 			case 'tree':
 				color = 'gray'
