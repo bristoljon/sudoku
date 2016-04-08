@@ -713,7 +713,39 @@ var sudoku = (function() {
 				sudoku.savestep()
 			}
 		}
-	}
+	};
+
+	// Browser check for compatibility
+	(function () {
+		var er = [];
+		try {
+		  eval("(function *(){})");
+		} catch(err) { er.push("No generators") }
+		try {
+		  eval("let it = ()=>{}");
+		} catch(err) { er.push("No arrow functions") }
+		try {
+		  eval("let it = 'test'");
+		} catch(err) { er.push("No block vars"); }
+		try {
+		  eval("const it = 'test'");
+		} catch(err) { er.push("No constants"); }
+		try {
+		  eval("var prox = new Proxy({},()=>{})");
+		} catch(err) { er.push("No proxies"); }
+		try {
+		  eval("var it = new Set([])");
+		} catch(err) { er.push("No set types"); }
+
+		if (er.length) {
+			console.error('Your browser does not support the latest JavaScript language features that this application depends on. Try updating your browser or using a better browser ;-)')
+			document.getElementById('myModal').style.display = 'block';
+		}
+	})();
+
+	document.getElementById('close').addEventListener('click', () => {
+		document.getElementById('myModal').style.display = 'none';
+	});
 
 	// Event listeners
 	document.getElementById('clear').addEventListener('click', () => {
