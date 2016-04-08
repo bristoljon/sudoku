@@ -28,7 +28,7 @@
 	}
 
 	.puzzle {
-  	margin: 15px auto;
+  	margin: 12px auto;
   	width: 332px;
   	height: 332px;
     border: 1px #444 solid;
@@ -82,6 +82,63 @@
       -moz-appearance:textfield;
   }
 
+  .btn {
+    padding:6px 9px;
+    border: 0 none;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .btn:focus, .btn:active:focus, .btn.active:focus {
+    background-color: #d9534f;
+    outline: 0 none;
+  }
+
+  .checks {
+    margin-bottom: 6px;
+  }
+
+  .checks .btn:hover {
+    background-color: #d9534f;
+    outline: 0 none;
+  }
+
+  #notcheck.active {
+    background-color: hotpink;
+    text-decoration: none
+  }
+
+  #linecheck.active {
+    background-color: palegreen;
+    text-decoration: none
+  }
+
+  #treesearch.active {
+    background-color: gray;
+    text-decoration: none
+  }
+
+  #notsearch {
+    background-color: darkorchid
+  }
+
+  #boxsearch {
+    background-color: chartreuse
+  }
+
+  #colsearch {
+    background-color:  deepskyblue
+  }
+
+  #rowsearch {
+    background-color: orange
+  }
+
+  #solve {
+
+  }
+
+
     </style>
 
 <body>
@@ -117,17 +174,17 @@
 	</div>
 
   <div class="text-center checks">
-    <input type="button" class="btn btn-danger" id="notcheck" value="Not Check"/>
-    <input type="button" class="btn btn-danger" id="linecheck" value="Line Check"/>
-    <input type="button" class="btn btn-danger" id="treesearch" value="Tree Search"/>
+    <input type="button" class="btn btn-danger check" id="notcheck" value="Not Check"/>
+    <input type="button" class="btn btn-danger check" id="linecheck" value="Line Check"/>
+    <input type="button" class="btn btn-danger check" id="treesearch" value="Tree Search"/>
 	</div>
 
 	<div class="text-center controls">
-		<input type="button" class="btn btn-success solve" value="Not Search"/>
-		<input type="button" class="btn btn-success solve" value="Box Search"/>
-		<input type="button" class="btn btn-success solve" value="Column Search"/>
-		<input type="button" class="btn btn-success solve" value="Row Search"/>
-		<input type="button" class="btn btn-success solve" value="Solve"/>
+		<input type="button" class="btn btn-success solve" id="notsearch" value="Not Search"/>
+		<input type="button" class="btn btn-success solve" id="boxsearch" value="Box Search"/>
+		<input type="button" class="btn btn-success solve" id="colsearch" value="Column Search"/>
+		<input type="button" class="btn btn-success solve" id="rowsearch" value="Row Search"/>
+		<input type="button" class="btn btn-success solve" id="solve" value="Solve"/>
 	</div>
 
   <div class="history">

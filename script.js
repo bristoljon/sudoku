@@ -237,25 +237,25 @@ var sudoku = (function() {
 	Cell.prototype.is = function (digit, color) {
 		switch (color) {
 			case 'box':
-				color = 'red';
+				color = 'chartreuse';
 				break;
 			case 'x':
-				color = 'brown';
-				break;
-			case 'y':
-				color = 'violet'
-				break;
-			case 'tree':
-				color = 'blue'
-				break;
-			case 'line':
 				color = 'orange';
 				break;
+			case 'y':
+				color = 'deepskyblue'
+				break;
+			case 'tree':
+				color = 'gray'
+				break;
+			case 'line':
+				color = 'palegreen';
+				break;
 			case 'notsearch':
-				color = 'green';
+				color = 'darkorchid';
 				break;
 			case 'notcheck':
-				color = 'gray';
+				color = 'hotpink';
 				break;
 		}
 
@@ -736,13 +736,13 @@ var sudoku = (function() {
 		});
 		e.target.classList.add('active');
 		switch (e.target.innerText) {
-			case 'Slow':
+			case 'SLOW':
 				sudoku.config.visuals = 250
 				break;
-			case 'Fast':
+			case 'FAST':
 				sudoku.config.visuals = 10;
 				break;
-			case 'Ultra':
+			case 'ULTRA':
 				sudoku.config.visuals = 0;
 				break;
 		}
@@ -757,41 +757,35 @@ var sudoku = (function() {
 	});
 
 	document.getElementById('notcheck').addEventListener('click', (e) => {
-		if (e.target.classList.contains('btn-danger')) {
+		if (sudoku.config.notcheck === false) {
 			sudoku.config.notcheck = true;
-			e.target.classList.remove('btn-danger');
-			e.target.classList.add('btn-success');
+			e.target.classList.add('active');
 		}
 		else {
 			sudoku.config.notcheck = false;
-			e.target.classList.remove('btn-success');
-			e.target.classList.add('btn-danger');
+			e.target.classList.remove('active');
 		}
 	});
 
 	document.getElementById('linecheck').addEventListener('click', (e) => {
-		if (e.target.classList.contains('btn-danger')) {
+		if (sudoku.config.linecheck === false) {
 			sudoku.config.linecheck = true;
-			e.target.classList.remove('btn-danger');
-			e.target.classList.add('btn-success');
+			e.target.classList.add('active');
 		}
 		else {
 			sudoku.config.linecheck = false;
-			e.target.classList.remove('btn-success');
-			e.target.classList.add('btn-danger');
+			e.target.classList.remove('active');
 		}
 	});
 
 	document.getElementById('treesearch').addEventListener('click', (e) => {
-		if (e.target.classList.contains('btn-danger')) {
+		if (sudoku.config.treesearch === false) {
 			sudoku.config.treesearch = true;
-			e.target.classList.remove('btn-danger');
-			e.target.classList.add('btn-success');
+			e.target.classList.add('active');
 		}
 		else {
 			sudoku.config.treesearch = false;
-			e.target.classList.remove('btn-success');
-			e.target.classList.add('btn-danger');
+			e.target.classList.remove('active');
 		}
 	});
 
