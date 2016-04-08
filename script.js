@@ -179,6 +179,7 @@ var sudoku = (function() {
 				var key = String.fromCharCode(event.keyCode);
 
 				if (this.couldBe(key)) {
+					this.el.style.color = '#222';
 					if (key !== current && current !== '') {
 						// Add the deleted digit to the groups' maybes lists
 						this.updateGroup(current);
@@ -212,7 +213,7 @@ var sudoku = (function() {
 		else if (sudoku.config.notcheck &&
 				!this.value &&
 				this.canOnlyBe()) {
-						this.is(this.canOnlyBe());
+						this.is(this.canOnlyBe(), 'notcheck');
 				}
 		else this.updated = true;
 	};
@@ -231,10 +232,35 @@ var sudoku = (function() {
 		return false
 	};
 
-	// Sets the cell value and updates its groups
-	Cell.prototype.is = function (digit) {
+	// Sets the cell value and updates its groups, changes color to that passed so
+	// can identify what method solved that cell
+	Cell.prototype.is = function (digit, color) {
+		switch (color) {
+			case 'box':
+				color = 'red';
+				break;
+			case 'x':
+				color = 'brown';
+				break;
+			case 'y':
+				color = 'violet'
+				break;
+			case 'tree':
+				color = 'blue'
+				break;
+			case 'line':
+				color = 'orange';
+				break;
+			case 'notsearch':
+				color = 'green';
+				break;
+			case 'notcheck':
+				color = 'gray';
+				break;
+		}
+
 		this.value = digit;
-		this.el.style.color = 'green';
+		this.el.style.color = color;
 		this.updateGroup();
 		sudoku.savestep();
 	};
@@ -397,7 +423,7 @@ var sudoku = (function() {
 						loop = (options) => {
 							console.log('Tree loop: ' + index);
 							this.load('history', start);
-							blank.is(options[index++]);
+							blank.is(options[index++], 'tree');
 							this.solve().then(
 								(m) => { resolve(m) },
 								(e) => { loop(options) }
@@ -518,7 +544,7 @@ var sudoku = (function() {
 				}
 				// Sets value to digit in maybes list if only one remains
 				if (blank.canOnlyBe()) {
-					blank.is(blank.canOnlyBe())
+					blank.is(blank.canOnlyBe(), 'notsearch')
 					changed++;
 				}
 				blank.highlight('white');
@@ -561,7 +587,7 @@ var sudoku = (function() {
 							throw new Error(type + ' search failed: This puzzle appears to be unsolvable.')
 						}
 						else if (maybes.length === 1) {
-							maybes[0].is(digit);
+							maybes[0].is(digit, type);
 							changed ++;
 						}
 						else if (type === 'box' && this.config.linecheck) {
@@ -598,7 +624,7 @@ var sudoku = (function() {
 					other.cantBe(digit);
 					yield;
 					if (other.canOnlyBe()) {
-						other.is(other.canOnlyBe())
+						other.is(other.canOnlyBe(), 'line');
 						yield(1);
 					}
 					other.highlight('white')
@@ -655,6 +681,7 @@ var sudoku = (function() {
 				save.value = cell.value;
 				save.maybes = [...cell.maybes];
 				save.updated = cell.updated;
+				save.color = cell.el.style.color;
 				return save;
 			});
 			if (name) localStorage.setItem(name, JSON.stringify(cells));
@@ -676,8 +703,9 @@ var sudoku = (function() {
 			for (var i = 0; i < cells.length; i++) {
 				for (var prop in cells[i]) {
 					this.cells[i][prop] = cells[i][prop];
-					this.cells[i].maybes = new Set(this.cells[i].maybes)
 				}
+				this.cells[i].maybes = new Set(this.cells[i].maybes);
+				this.cells[i].el.style.color = cells[i].color;
 			}
 			// If loaded from storage reset history and save first step
 			if (store !== 'history') {
