@@ -84,38 +84,19 @@ var sudoku = (function() {
 
 	// Custom jQuery selector replacements to allow setting attributes of
 	// HTMLCollections
-	var $set = (selection, attribute, flag) => {
-		var type = Object.prototype.toString.call( selection );
-		if (type === '[object HTMLCollection]') {
-			for (var i = 0; i < selection.length; i++) {
-				selection[i][attribute] = flag
-			}
+	HTMLCollection.prototype.set = function (attribute, flag) {
+		for (var i = 0; i < this.length; i++) {
+			this[i][attribute] = flag
 		}
-		else console.log('Not an HTMLCollection')
 	};
 
 	// Same but for calling methods of elements in an HTMLCollection, used
 	// for adding event listeners to solve buttons.
-	var $call = (selection, method, ...args) => {
-		var type = Object.prototype.toString.call( selection );
-		if (type === '[object HTMLCollection]') {
-			for (var i = 0; i < selection.length; i++) {
-				selection[i][method].apply(selection[i], args)
-			}
+	HTMLCollection.prototype.call = function (method, ...args) {
+		for (var i = 0; i < this.length; i++) {
+			this[i][method].apply(this[i], args)
 		}
-		else console.log('Not an HTMLCollection')
 	};
-
-	// Handy little check to determine whether yield works. Thanks SO! Although it
-	// returns false for Chrome but yield works (just yield* that doesn't)
-	var can_yield = (function(){
-    try {
-        return eval("!!Function('yield true;')().next()");
-    }
-    catch(e) {
-        return false;
-    }
-	})();
 
 	// Cell constructor that adds unique ID to each one
 	var Cell = (function() {
@@ -204,7 +185,11 @@ var sudoku = (function() {
 						this.maybes.add(current);
 					}
 					this.value = key;
-					this.updateGroup();
+					try {
+						this.updateGroup();
+					}
+					catch (e) { alert(e) }
+
 				}
 				else {
 					event.preventDefault()
@@ -221,7 +206,10 @@ var sudoku = (function() {
 	// Removes passed digit from maybes list and flags as updated
 	Cell.prototype.cantBe = function (digit)  {
 		this.maybes.delete(digit);
-		if (sudoku.config.notcheck &&
+		if (this.maybes.size < 1) {
+			throw new Error('Well one of us has made a mistake.. This puzzle appears to be unsolvable.')
+		}
+		else if (sudoku.config.notcheck &&
 				!this.value &&
 				this.canOnlyBe()) {
 						this.is(this.canOnlyBe());
@@ -237,7 +225,7 @@ var sudoku = (function() {
 
 	// Checks maybes set, if only one digit, returns it. Otherwise false
 	Cell.prototype.canOnlyBe = function ()  {
-		if ([...this.maybes].length === 1) {
+		if (this.maybes.size === 1) {
 			return [...this.maybes][0]
 		}
 		return false
@@ -373,46 +361,50 @@ var sudoku = (function() {
 									loop()
 								}
 								else {
-									if (blanks) reject('solve failed after ' + iterations + ' goes');
-									else resolve('solve succeeded in ' + iterations + ' goes');
-									console.timeEnd('Solve');
-									console.log(blanks)
+									resolve(blanks)
 								}
 							})
-							.catch( e => {
-								console.log(e);
-							});
+							.catch( e => { reject(e) })
 						}
 				loop()
-			}).then((e) => { console.log('yay')}, (e) => {
-				if (sudoku.config.treesearch) {
-					console.log('starting treesearch');
-					sudoku.treesearch();
+			}).then(
+				(blanks) => {
+					if (blanks && sudoku.config.treesearch) {
+						console.log('starting treesearch');
+						return sudoku.treesearch();
+					}
+					else if (!blanks) {
+						console.log('Solve succeeded')
+					}
+					else {
+						return Promise.reject('Failed to solve. Try enabling Tree Search')
+					}
 				}
-			})
+			)
 		},
 
 		treesearch: function () {
 			var start = this.savestep(),
 					index = 0;
-					doubles = this.cells.getBlanks()
-						.filter( cell => {
-							return [...cell.maybes].length === 2
+					blanks = this.cells.getBlanks()
+						.sort( (a,b) => {
+							return a.maybes.size - b.maybes.size
 						});
-			if (doubles.length) {
-				var double = doubles[0],
-						options = [...double.maybes],
+			return new Promise( (resolve, reject) => {
+				console.log('Tree search: ' + blanks[0].id);
+				var blank = blanks[0],
+						options = [...blank.maybes],
 						loop = (options) => {
+							console.log('Tree loop: ' + index);
 							this.load('history', start);
-							double.is(options[index]);
-							index++;
+							blank.is(options[index++]);
 							this.solve().then(
-								(m) => {console.log(m)},
-								(e) => { loop(options)}
+								(m) => { resolve(m) },
+								(e) => { loop(options) }
 							)
 						}
 				loop(options);
-			}
+			})
 		},
 
 		// Takes a generator method (bound to sudoku object), creates an iterator.
@@ -541,8 +533,7 @@ var sudoku = (function() {
 		search: function* (type) {
 			var groups = [],
 				changed = 0;
-
-			for (let i = 0; i < 10; i++) {
+			for (let i = 0; i < 9; i++) {
 				groups.push(this.getGroup(type, i))
 			}
 			for (let i = 0; i < groups.length; i++) {
@@ -566,11 +557,14 @@ var sudoku = (function() {
 							blank.el.value = '';
 							blank.highlight('white');
 						};
-						if (maybes.length === 1) {
+						if (maybes.length === 0) {
+							throw new Error(type + ' search failed: This puzzle appears to be unsolvable.')
+						}
+						else if (maybes.length === 1) {
 							maybes[0].is(digit);
 							changed ++;
 						}
-						if (type === 'box' && this.config.linecheck) {
+						else if (type === 'box' && this.config.linecheck) {
 							if (maybes.length === 2 || maybes.length === 3) {
 								yield* this.linecheck(maybes, digit);
 							}
@@ -706,7 +700,7 @@ var sudoku = (function() {
 		sudoku.load('puzzle')
 	});
 
-	$call(document.getElementsByClassName('visual'), 'addEventListener', 'click',
+	document.getElementsByClassName('visual').call('addEventListener', 'click',
 	(e) => {
 		var buttons = document.getElementsByClassName('visual');
 		[].forEach.call(buttons, (el) => {
@@ -773,13 +767,13 @@ var sudoku = (function() {
 		}
 	});
 
-	$call(document.getElementsByClassName('solve'), 'addEventListener', 'click',
+	document.getElementsByClassName('solve').call('addEventListener', 'click',
 	(e) => {
 
 		var buttons = document.getElementsByClassName('solve');
-		$set(buttons, 'disabled', true);
+		buttons.set('disabled', true);
 		var done = () => {
-			$set(buttons, 'disabled', false);
+			buttons.set('disabled', false);
 			e.target.classList.remove('btn-danger');
 			e.target.classList.add('btn-success');
 		}
@@ -790,7 +784,7 @@ var sudoku = (function() {
 			var run = (method, arg) => {
 				sudoku.run(method, false, arg)
 					.then(done)
-					.catch( (e) => { console.log(e); done() });
+					.catch( (e) => { alert(e); done() });
 			}
 
 			e.target.disabled = false;
@@ -814,21 +808,12 @@ var sudoku = (function() {
 					console.time('Solve');
 					sudoku.solve()
 						.then( blanks => {
+							console.log('done');
 							done();
-							if (blanks) {
-								console.timeEnd('Solve');
-								console.log('Solve failed');
-								console.log(blanks)
-							}
-							else {
-								console.timeEnd('Solve');
-								console.log('Solve succeeded');
-								console.log(blanks)
-							}
 						})
 						.catch( e => {
-							console.log(e);
 							done();
+							alert(e);
 						});
 					break;
 				default:
