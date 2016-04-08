@@ -249,7 +249,7 @@ var sudoku = (function() {
 				color = 'gray'
 				break;
 			case 'line':
-				color = 'palegreen';
+				color = 'olive';
 				break;
 			case 'notsearch':
 				color = 'darkorchid';
