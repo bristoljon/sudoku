@@ -743,7 +743,7 @@ var sudoku = (function() {
 		}
 	})();
 
-	document.getElementById('close').addEventListener('click', () => {
+	document.getElementsByClassName('close')[0].addEventListener('click', () => {
 		document.getElementById('myModal').style.display = 'none';
 	});
 
