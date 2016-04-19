@@ -1,3 +1,5 @@
+require("babel-polyfill");
+
 var sudoku = (function() {
 
 	const DIGITS = ['1','2','3','4','5','6','7','8','9'];
@@ -117,6 +119,7 @@ var sudoku = (function() {
 							break;
 					}
 					target[property] = value;
+					return true;
 				}
 			});
 			return proxy;
@@ -411,7 +414,7 @@ var sudoku = (function() {
 
 		treesearch: function () {
 			var start = this.savestep(),
-					index = 0;
+					index = 0,
 					blanks = this.cells.getBlanks()
 						.sort( (a,b) => {
 							return a.maybes.size - b.maybes.size
