@@ -47,7 +47,7 @@ gulp.task( 'deploy', function () {
 	];
 
 	return gulp.src( globs, { base: '.', buffer: false })
-		.pipe( conn.newer( 'bristoljon.uk/public_html/projects/sudoku2' ) )
-		.pipe( conn.dest( 'bristoljon.uk/public_html/projects/sudoku2' ) )
+		.pipe( conn.newer( 'bristoljon.uk/public_html/projects/sudoku' ) )
+		.pipe( conn.dest( 'bristoljon.uk/public_html/projects/sudoku' ) )
 
 });
