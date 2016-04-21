@@ -100,6 +100,10 @@ var sudoku = (function() {
 		}
 	};
 
+	NodeList.prototype.call = HTMLCollection.prototype.call;
+
+	NodeList.prototype.set = HTMLCollection.prototype.set;
+
 	// Cell constructor that adds unique ID to each one
 	var Cell = (function() {
 		var counter = 0;
@@ -399,13 +403,14 @@ var sudoku = (function() {
 			}).then(
 				(blanks) => {
 					if (blanks && sudoku.config.treesearch) {
-						console.log('starting treesearch');
+						console.log('Unsuccessful, starting treesearch...');
 						return sudoku.treesearch();
 					}
 					else if (!blanks) {
-						console.log('Solve succeeded')
+						console.log('Successful')
 					}
 					else {
+						console.log('Unsuccessful, try enabling tree search');
 						return Promise.reject('Failed to solve. Try enabling Tree Search')
 					}
 				}
@@ -420,11 +425,9 @@ var sudoku = (function() {
 							return a.maybes.size - b.maybes.size
 						});
 			return new Promise( (resolve, reject) => {
-				console.log('Tree search: ' + blanks[0].id);
 				var blank = blanks[0],
 						options = [...blank.maybes],
 						loop = (options) => {
-							console.log('Tree loop: ' + index);
 							this.load('history', start);
 							blank.is(options[index++], 'tree');
 							this.solve().then(
@@ -718,38 +721,6 @@ var sudoku = (function() {
 		}
 	};
 
-	// Browser check for compatibility
-	(function () {
-		var er = [];
-		try {
-		  eval("(function *(){})");
-		} catch(err) { er.push("No generators") }
-		try {
-		  eval("let it = ()=>{}");
-		} catch(err) { er.push("No arrow functions") }
-		try {
-		  eval("let it = 'test'");
-		} catch(err) { er.push("No block vars"); }
-		try {
-		  eval("const it = 'test'");
-		} catch(err) { er.push("No constants"); }
-		try {
-		  eval("var prox = new Proxy({},()=>{})");
-		} catch(err) { er.push("No proxies"); }
-		try {
-		  eval("var it = new Set([])");
-		} catch(err) { er.push("No set types"); }
-
-		if (er.length) {
-			console.error('Your browser does not support the latest JavaScript language features that this application depends on. Try updating your browser or using a better browser ;-)')
-			document.getElementById('myModal').style.display = 'block';
-		}
-	})();
-
-	document.getElementsByClassName('close')[0].addEventListener('click', () => {
-		document.getElementById('myModal').style.display = 'none';
-	});
-
 	// Event listeners
 	document.getElementById('clear').addEventListener('click', () => {
 		sudoku.clear()
@@ -826,10 +797,11 @@ var sudoku = (function() {
 
 	document.getElementsByClassName('solve').call('addEventListener', 'click',
 	(e) => {
-
+		console.time(e.target.value);
 		var buttons = document.getElementsByClassName('solve');
 		buttons.set('disabled', true);
 		var done = () => {
+			console.timeEnd(e.target.value)
 			buttons.set('disabled', false);
 			e.target.classList.remove('btn-danger');
 			e.target.classList.add('btn-success');
@@ -839,44 +811,37 @@ var sudoku = (function() {
 		if (!sudoku._timer) {
 
 			var run = (method, arg) => {
-				sudoku.run(method, false, arg)
-					.then(done)
-					.catch( (e) => { alert(e); done() });
-			}
+				return sudoku.run(method, false, arg)
+			};
 
 			e.target.disabled = false;
 			e.target.classList.remove('btn-success');
 			e.target.classList.add('btn-danger');
 
-			switch (e.target.value) {
-				case 'Not Search':
-					run(sudoku.update);
-					break;
-				case 'Box Search':
-				  run(sudoku.search, 'box');
-					break;
-				case 'Column Search':
-					run(sudoku.search, 'x');
-					break;
-				case 'Row Search':
-					run(sudoku.search, 'y');
-					break;
-				case 'Solve':
-					console.time('Solve');
-					sudoku.solve()
-						.then( blanks => {
-							console.log('done');
-							done();
-						})
-						.catch( e => {
-							done();
-							alert(e);
-						});
-					break;
-				default:
-					console.log('No handler found')
-					break;
-			}
+			function choice(btn) {
+				switch (btn) {
+					case 'Not Search':
+						return run(sudoku.update);
+					case 'Box Search':
+					  return run(sudoku.search, 'box');
+					case 'Column Search':
+						return run(sudoku.search, 'x');
+					case 'Row Search':
+						return run(sudoku.search, 'y');
+					case 'Solve':
+						return sudoku.solve()
+					default:
+						console.log('No handler found')
+						break;
+				}
+			};
+
+			choice(e.target.value)
+				.then(done)
+				.catch( e => {
+					done();
+					alert(e);
+				});
 		}
 		else {
 			sudoku._stop = true;
@@ -884,6 +849,34 @@ var sudoku = (function() {
 
 	});
 	return sudoku
+})();
+
+// Browser check for compatibility
+(function () {
+	var er = [];
+	try {
+	  eval("(function *(){})");
+	} catch(err) { er.push("No generators") }
+	try {
+	  eval("let it = ()=>{}");
+	} catch(err) { er.push("No arrow functions") }
+	try {
+	  eval("let it = 'test'");
+	} catch(err) { er.push("No block vars"); }
+	try {
+	  eval("const it = 'test'");
+	} catch(err) { er.push("No constants"); }
+	try {
+	  eval("var prox = new Proxy({},()=>{})");
+	} catch(err) { er.push("No proxies"); }
+	try {
+	  eval("var it = new Set([])");
+	} catch(err) { er.push("No set types"); }
+
+	if (er.length) {
+		console.error('Your browser does not support the latest JavaScript language features that this application depends on. Try updating your browser or using a better browser ;-)')
+		document.getElementById('myModal').style.display = 'block';
+	}
 })();
 
 sudoku.init();
