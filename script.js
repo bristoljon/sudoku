@@ -157,8 +157,9 @@ const Sudoku = (() => {
           Sudoku.getCell(this.x, this.y + 1).el.focus()
         }
         break;
-      case 46: // Delete key
-      case 8: // Backspace
+      // Delete key / Backspace key
+      case 46:
+      case 8:
         // Reverse the changes made by updateGroup by passing digit to re add to maybes list
         if (current !== '') {
           this.updateGroup(current);
@@ -191,13 +192,13 @@ const Sudoku = (() => {
   };
 
   // Returns true if digit is found in cells maybes list
-  Cell.prototype.couldBe = function (digit)  {
-    if (this.maybes.has(digit)) return true
-    return false
+  Cell.prototype.couldBe = function (digit) {
+    if (this.maybes.has(digit)) return true;
+    return false;
   };
 
   // Removes passed digit from maybes list and flags as updated
-  Cell.prototype.cantBe = function (digit)  {
+  Cell.prototype.cantBe = function (digit) {
     this.maybes.delete(digit);
     if (this.maybes.size < 1) {
       throw new Error('Well one of us has made a mistake.. This puzzle appears to be unsolvable.')
@@ -211,13 +212,13 @@ const Sudoku = (() => {
   };
 
   // Adds digit to maybes list and flags as updated
-  Cell.prototype.canBe = function (digit)  {
+  Cell.prototype.canBe = function (digit) {
     this.maybes.add(digit);
     this.updated = true;
   };
 
   // Checks maybes set, if only one digit, returns it. Otherwise false
-  Cell.prototype.canOnlyBe = function ()  {
+  Cell.prototype.canOnlyBe = function () {
     if (this.maybes.size === 1) {
       return [...this.maybes][0]
     }
@@ -434,19 +435,20 @@ const Sudoku = (() => {
       return new Promise(function (resolve, reject) {
         if (visuals && !repeat) {
           self.runAsync(method, args[0]).then(
-            found => { resolve(found) },
-            reason => { reject(reason) }
+            found => { resolve(found)}
           )
         }
         else if (visuals && repeat) {
           let loop = () => {
             self.runAsync(method, args[0])
               .then( found => {
+                console.log('accept hit');
                 var blanks = self.cells.getBlanks().length;
                 if (found && blanks) loop()
                 else resolve(blanks)
-              }, (reason) => {
-                reject(reason)
+              }, e => {
+                console.log('rejection hit');
+                reject(e);
               })
           };
           loop()
@@ -473,8 +475,7 @@ const Sudoku = (() => {
     runAsync: function (method,...args) {
       var self = this,
         speed = this.config.visuals,
-        iterator = method.apply(this, args),
-        start = this.cells.getBlanks().length;
+        iterator = method.apply(this, args);
       return new Promise(function (resolve, reject) {
         self._timer = window.setInterval(() => {
           var step = iterator.next();
@@ -496,13 +497,13 @@ const Sudoku = (() => {
     // found
     runSync: function (method,...args) {
       var self = this,
-        iterator = method.apply(this, args);
+          iterator = method.apply(this, args);
 
       while (true) {
         var state = iterator.next();
         if (state.done) break;
       }
-      return state.value
+      return state.value;
     },
 
 
@@ -573,7 +574,7 @@ const Sudoku = (() => {
               yield(changed);
               blank.el.value = '';
               blank.highlight('white');
-            };
+            }
             if (maybes.length === 0) {
               throw new Error(type + ' search failed: This puzzle appears to be unsolvable.')
             }
@@ -599,7 +600,7 @@ const Sudoku = (() => {
     // of the row or column accordingly
     linecheck: function* (maybes, digit) {
       // Check that all cells are on the same row or column
-      var group = maybes.areSameGroup();
+      let group = maybes.areSameGroup();
       if (group) {
         maybes.all('highlight', 'green');
         yield;
