@@ -9,6 +9,7 @@ import { grade, GUESSING_FLOOR } from './src/grader.js';
 import PUZZLES from './src/puzzles.js';
 import { initScanner } from './scan-ui.js';
 import { toast } from './toast.js';
+import { initInstall } from './install.js';
 
 // Digit colour shows which method solved the cell (matches the buttons).
 // Digits you enter yourself have no colour: they're the puzzle's givens.
@@ -63,6 +64,8 @@ const Sudoku = {
   current: -1,
   running: null,
   beforeRun: null,
+  start: null,
+  name: '',
 
   // Read-only inputs: they hold the digits and solver visuals but don't pop
   // up a mobile keyboard - digits come from the keypad (or a real keyboard)
@@ -196,6 +199,7 @@ const Sudoku = {
     this.colors[i] = '';
     this.renderAll();
     this.savestep();
+    this.editedStart();
   },
 
   // The digits you entered (not the solver's): what Grade rates
@@ -391,70 +395,128 @@ const Sudoku = {
     this.restore(this.history[n]);
   },
 
-  // Saving / loading
+  // Puzzles
+  //
+  // Every puzzle has a start (what Reset goes back to): an example or scan as
+  // it was loaded, a saved puzzle as it was when first saved, or whatever
+  // you've typed in before running any searches.
 
-  clear() {
+  // Replaces the puzzle. name is set when it came from Puzzles, so saving
+  // again updates that entry.
+  open(state, start = state, name = '') {
     this.stop();
-    this.grid = new Grid();
-    this.colors.fill('');
-    this.renderAll();
-    this.savestep();
-    clearGrade();
-  },
-
-  // Same format as v1 so old saves still load
-  save(name) {
-    const cells = CELLS.map(i => ({
-      value: this.grid.values[i] ? String(this.grid.values[i]) : '',
-      maybes: this.grid.values[i] ? [String(this.grid.values[i])] : LIST[this.grid.cands[i]].map(String),
-      color: this.colors[i],
-    }));
-    store.set(name, JSON.stringify(cells));
-  },
-
-  load(name) {
-    let cells;
-    let grid;
-    try {
-      cells = JSON.parse(store.get(name));
-      if (!Array.isArray(cells) || cells.length !== 81) return false;
-      grid = Grid.fromValues(cells.map(c => Number(c.value) || 0));
-    }
-    catch (e) {
-      return false;
-    }
-    cells.forEach((c, i) => {
-      if (!c.value && c.maybes) {
-        const mask = c.maybes.reduce((m, d) => m | (1 << (Number(d) - 1)), 0);
-        if (grid.cands[i] & mask) grid.cands[i] &= mask;
-      }
-    });
-    this.stop();
-    this.grid = grid;
-    // v1 saved every cell's colour, including 'black' / '#222' for givens
-    this.colors = cells.map(c => (c.value && Object.values(COLORS).includes(c.color) ? c.color : ''));
-    this.resetHistory();
-    return true;
-  },
-
-  // Loads 81 digits (0 = blank) as a new puzzle
-  loadValues(values) {
-    const grid = Grid.fromValues(values);
-    this.stop();
-    this.grid = grid;
-    this.colors.fill('');
-    this.resetHistory();
-  },
-
-  resetHistory() {
-    this.renderAll();
+    this.restore(state);
+    this.start = start;
+    this.name = name;
     this.history = [];
     this.current = -1;
     this.beforeRun = null;
     this.savestep();
     clearGrade();
+    this.persist();
+  },
+
+  // Loads 81 digits (0 = blank) as a new puzzle
+  loadValues(values, name) {
+    const grid = Grid.fromValues(values);
+    this.open({ ...grid.snapshot(), colors: new Array(81).fill('') }, undefined, name);
+  },
+
+  clear() {
+    this.loadValues(new Array(81).fill(0));
+  },
+
+  reset() {
+    if (!this.start) return;
+    this.stop();
+    this.restore(this.start);
+    this.savestep();
+  },
+
+  // Digits typed in before any search has run are setting up the puzzle
+  editedStart() {
+    if (this.colors.every(c => !c)) this.start = this.snapshot();
+  },
+
+  // The current puzzle survives reloads (and the app being closed)
+  persist() {
+    store.set('puzzle', JSON.stringify(toCells(this.snapshot())));
+    if (this.start) store.set('start', JSON.stringify(toCells(this.start)));
+    store.set('puzzle-name', this.name || '');
+  },
+
+  resume() {
+    const state = fromCells(store.get('puzzle'));
+    if (!state) return false;
+    // Saves from before there was a start: the digits you entered
+    const start = fromCells(store.get('start')) || givensOf(state);
+    this.open(state, start, store.get('puzzle-name') || '');
+    return true;
+  },
+
+  saveAs(name) {
+    const list = savedPuzzles().filter(p => p.name !== name);
+    list.unshift({ name, start: toCells(this.start || this.snapshot()), state: toCells(this.snapshot()) });
+    store.set('saved', JSON.stringify(list));
+    this.name = name;
+    this.persist();
+  },
+
+  openSaved(name) {
+    const entry = savedPuzzles().find(p => p.name === name);
+    const state = entry && fromCells(entry.state);
+    if (!state) return false;
+    this.open(state, fromCells(entry.start) || givensOf(state), name);
+    return true;
   },
 };
+
+// Stored in the same cell format as v1, so its saves still load
+function toCells(snap) {
+  return CELLS.map(i => ({
+    value: snap.values[i] ? String(snap.values[i]) : '',
+    maybes: snap.values[i] ? [String(snap.values[i])] : LIST[snap.cands[i]].map(String),
+    color: snap.colors[i],
+  }));
+}
+
+// Accepts cells or their JSON. Returns a snapshot, or null if unusable.
+function fromCells(cells) {
+  let grid;
+  try {
+    if (typeof cells === 'string') cells = JSON.parse(cells);
+    if (!Array.isArray(cells) || cells.length !== 81) return null;
+    grid = Grid.fromValues(cells.map(c => Number(c.value) || 0));
+  }
+  catch (e) {
+    return null;
+  }
+  cells.forEach((c, i) => {
+    if (!c.value && c.maybes) {
+      const mask = c.maybes.reduce((m, d) => m | (1 << (Number(d) - 1)), 0);
+      if (grid.cands[i] & mask) grid.cands[i] &= mask;
+    }
+  });
+  // v1 saved every cell's colour, including 'black' / '#222' for givens
+  const colors = cells.map(c => (c.value && Object.values(COLORS).includes(c.color) ? c.color : ''));
+  return { ...grid.snapshot(), colors };
+}
+
+// Just the digits you entered, with fresh pencil marks
+function givensOf(snap) {
+  const grid = Grid.fromValues(CELLS.map(i => (snap.colors[i] ? 0 : snap.values[i])));
+  return { ...grid.snapshot(), colors: new Array(81).fill('') };
+}
+
+function savedPuzzles() {
+  try {
+    const list = JSON.parse(store.get('saved'));
+    return Array.isArray(list) ? list : [];
+  }
+  catch (e) {
+    return [];
+  }
+}
 
 function summary(name, solved, stats) {
   const outcome = solved ? 'solved' : 'stuck';
@@ -582,20 +644,57 @@ function start(button, fn) {
 
 $('clear').addEventListener('click', () => Sudoku.clear());
 
-$('save').addEventListener('click', () => {
-  Sudoku.save('puzzle');
-  toast('Saved - Load will bring you back to this point');
-});
+$('reset').addEventListener('click', () => Sudoku.reset());
 
-$('load').addEventListener('click', () => {
-  if (!Sudoku.load('puzzle')) toast('Nothing saved yet');
-});
-
-$('reset').addEventListener('click', () => {
+// Undo the last search / watch
+$('undo').addEventListener('click', () => {
   if (Sudoku.beforeRun && !Sudoku.running) {
     Sudoku.restore(Sudoku.beforeRun);
     Sudoku.savestep();
   }
+});
+
+// Save dialog: name the puzzle (saving under an existing name replaces it)
+// and manage saved puzzles
+
+function renderSavedList() {
+  const list = savedPuzzles();
+  $('saved-list').innerHTML = list.length
+    ? `<h3>Saved</h3><ul>${list.map(p => `
+      <li><span>${esc(p.name)}</span>
+      <button type="button" class="small delete" data-name="${esc(p.name)}" aria-label="Delete ${esc(p.name)}">Delete</button></li>`).join('')}</ul>`
+    : '';
+}
+
+const defaultName = () => Sudoku.name
+  || `Puzzle ${new Date().toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`;
+
+$('save').addEventListener('click', () => {
+  $('save-name').value = defaultName();
+  renderSavedList();
+  $('save-dialog').returnValue = ''; // Escape keeps the previous value
+  $('save-dialog').showModal();
+  $('save-name').select();
+});
+
+$('save-cancel').addEventListener('click', () => $('save-dialog').close('cancel'));
+
+$('save-dialog').addEventListener('close', () => {
+  const name = $('save-name').value.trim();
+  if ($('save-dialog').returnValue !== 'save' || !name) return;
+  const replacing = savedPuzzles().some(p => p.name === name);
+  Sudoku.saveAs(name);
+  renderPuzzleMenu();
+  toast(`${replacing ? 'Updated' : 'Saved'} "${name}" - it's under Puzzles`);
+});
+
+$('saved-list').addEventListener('click', e => {
+  const btn = e.target.closest('.delete');
+  if (!btn) return;
+  store.set('saved', JSON.stringify(savedPuzzles().filter(p => p.name !== btn.dataset.name)));
+  if (Sudoku.name === btn.dataset.name) Sudoku.name = '';
+  renderSavedList();
+  renderPuzzleMenu();
 });
 
 document.querySelectorAll('.visual').forEach(btn => btn.addEventListener('click', e => {
@@ -678,13 +777,23 @@ $('tabs').addEventListener('keydown', e => {
 const savedTab = store.get('tab');
 if (savedTab && $(savedTab) && $(savedTab).getAttribute('role') === 'tab') showTab(savedTab);
 
-// Examples and puzzle text
-$('examples').innerHTML = '<option value="">Examples&hellip;</option>'
-  + PUZZLES.map((p, n) => `<option value="${n}">${esc(p.name)}</option>`).join('');
-$('examples').addEventListener('change', e => {
-  if (e.target.value === '') return;
-  Sudoku.loadValues(parseValues(PUZZLES[e.target.value].puzzle));
+// Puzzles menu: your saved puzzles, then the examples
+function renderPuzzleMenu() {
+  const saved = savedPuzzles();
+  $('puzzles').innerHTML = '<option value="">Puzzles&hellip;</option>'
+    + (saved.length ? `<optgroup label="Saved">${saved.map(p => `<option value="s:${esc(p.name)}">${esc(p.name)}</option>`).join('')}</optgroup>` : '')
+    + `<optgroup label="Examples">${PUZZLES.map((p, n) => `<option value="e:${n}">${esc(p.name)}</option>`).join('')}</optgroup>`;
+}
+
+$('puzzles').addEventListener('change', e => {
+  const { value } = e.target;
   e.target.value = '';
+  if (value.startsWith('s:')) {
+    if (!Sudoku.openSaved(value.slice(2))) toast("Couldn't open that puzzle");
+  }
+  else if (value.startsWith('e:')) {
+    Sudoku.loadValues(parseValues(PUZZLES[value.slice(2)].puzzle));
+  }
 });
 
 $('import').addEventListener('click', () => {
@@ -710,17 +819,21 @@ initScanner({
       toast(`Couldn't import: ${e.message}`);
       return;
     }
-    Sudoku.save('puzzle');
-    toast(`Imported ${grid.filter(Boolean).length} digits and saved as your start position`);
+    toast(`Imported ${grid.filter(Boolean).length} digits - Reset comes back here`);
   },
 });
 
+initInstall();
 Sudoku.init();
 renderStrategies();
-if (!Sudoku.load('puzzle')) {
-  Sudoku.loadValues(parseValues(PUZZLES[1].puzzle));
-  Sudoku.save('puzzle');
-}
+renderPuzzleMenu();
+if (!Sudoku.resume()) Sudoku.loadValues(parseValues(PUZZLES[1].puzzle));
+
+// Keep the current puzzle when the app is closed or switched away from
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') Sudoku.persist();
+});
+window.addEventListener('pagehide', () => Sudoku.persist());
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));

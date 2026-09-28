@@ -45,7 +45,7 @@
     header.top {
       display: flex; align-items: center; justify-content: space-between; gap: 8px;
       background: var(--brand); color: #fff;
-      padding: 10px 14px; margin: 0 -12px 10px;
+      padding: 10px 14px; margin: 0 -12px 10px; min-height: 60px;
     }
     header.top h1 { font-size: 18px; font-weight: 700; letter-spacing: .2px; }
 
@@ -58,11 +58,16 @@
     button:disabled { opacity: .45; cursor: default; }
     button:focus-visible { outline: 3px solid #7aa7ff; outline-offset: 1px; }
     .primary { background: var(--accent); color: #fff; }
-    .scan-btn { display: inline-flex; align-items: center; gap: 6px; background: #fff; color: var(--brand); }
+    .icon-btn { background: transparent; color: #fff; min-width: 40px; padding: 8px; display: inline-flex; align-items: center; justify-content: center; }
+    .icon-btn svg { width: 22px; height: 22px; }
+    .icon-btn[hidden] { display: none; }
+    .scan-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; background: var(--brand); color: #fff; }
     .scan-btn svg { width: 20px; height: 20px; }
     .scan-wrap { position: relative; }
+    .toolbar.sources { display: grid; grid-template-columns: 1fr 1fr; }
+    .toolbar.sources select { max-width: none; width: 100%; }
     .menu {
-      position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; min-width: 170px;
+      position: absolute; left: 0; top: calc(100% + 6px); z-index: 30; min-width: 100%;
       background: var(--card); border-radius: var(--radius); padding: 4px;
       box-shadow: 0 6px 24px rgba(0,0,0,.25); display: flex; flex-direction: column;
     }
@@ -130,7 +135,24 @@
     .history { display: flex; justify-content: center; gap: 10px; }
     .history button { min-width: 64px; font-size: 18px; }
 
-    .history #reset { font-size: 15px; }
+    .history #undo { font-size: 15px; }
+
+    /* Save dialog */
+    dialog {
+      border: 0; border-radius: 14px; padding: 16px; width: min(92vw, 380px);
+      background: var(--bg); color: var(--ink); box-shadow: 0 10px 40px rgba(0,0,0,.3);
+    }
+    dialog::backdrop { background: rgba(10,14,22,.6); }
+    dialog h2 { font-size: 18px; margin-bottom: 10px; }
+    dialog label { display: block; font-weight: 600; margin-bottom: 4px; }
+    dialog input[type="text"] { width: 100%; font: inherit; padding: 9px 10px; border: 1px solid var(--thin); border-radius: 8px; background: var(--card); }
+    dialog .hint { color: var(--muted); font-size: 13px; margin: 6px 0 12px; }
+    dialog .row { justify-content: flex-end; }
+    dialog .row > button { flex: 0 0 auto; min-width: 90px; }
+    #saved-list h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 16px 0 4px; }
+    #saved-list ul { list-style: none; max-height: 40vh; overflow-y: auto; }
+    #saved-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 5px 0; border-top: 1px solid #dde2ea; }
+    #saved-list li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     select {
       font: inherit; font-weight: 600; border: 0; border-radius: 8px; min-height: 40px;
@@ -221,24 +243,30 @@
   <main>
     <header class="top">
       <h1>Sudoku Cracker</h1>
+      <button id="installBtn" class="icon-btn" type="button" aria-label="Install app" title="Install app" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+      </button>
+    </header>
+
+    <div class="toolbar sources">
       <div class="scan-wrap">
         <button id="scanBtn" class="scan-btn" type="button" aria-haspopup="menu" aria-expanded="false">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a2 2 0 0 1 2-2h2l2-2h6l2 2h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="4"/></svg>
-          Scan
+          Scan puzzle
         </button>
         <div id="scanMenu" class="menu" role="menu" hidden>
           <button type="button" role="menuitem" id="scanTake">Take photo</button>
           <button type="button" role="menuitem" id="scanChoose">Choose photo</button>
         </div>
       </div>
-    </header>
+      <select id="puzzles" aria-label="Open a saved or example puzzle"></select>
+    </div>
 
     <div class="toolbar">
       <div class="group">
+        <button id="reset" type="button" title="Back to the start of this puzzle">Reset</button>
         <button id="clear" type="button">Clear</button>
         <button id="save" type="button">Save</button>
-        <button id="load" type="button">Load</button>
-        <select id="examples" aria-label="Load an example puzzle"></select>
       </div>
       <div class="seg" role="group" aria-label="Visualisation speed">
         <button type="button" class="visual" data-speed="250">Slow</button>
@@ -320,7 +348,7 @@
       <h2>Step through</h2>
       <div class="history">
         <button id="backStep" type="button" aria-label="Step back">‹</button>
-        <button id="reset" type="button" title="Go back to before the last search">Reset</button>
+        <button id="undo" type="button" title="Go back to before the last search">Undo</button>
         <button id="forwardStep" type="button" aria-label="Step forward">›</button>
       </div>
     </section>
@@ -342,10 +370,10 @@
 
     <details class="panel" id="instructions">
       <summary>How it works</summary>
-      <p><strong>Scan</strong> a puzzle from a newspaper, book or screenshot: take or choose a photo, check the digits it read (unsure ones are orange - tap to fix), then Import. If it misses the grid, use <em>Adjust corners</em>.</p>
-      <p>Or enter digits yourself: tap a cell, then a number. On a keyboard you can type digits and use the arrow keys. Or pick one of the Examples.</p>
+      <p><strong>Scan puzzle</strong> to import one from a newspaper, book or screenshot: take or choose a photo, check the digits it read (unsure ones are orange - tap to fix), then Import. If it misses the grid, use <em>Adjust corners</em>.</p>
+      <p>Or enter digits yourself: tap a cell, then a number. On a keyboard you can type digits and use the arrow keys. Or pick one from Puzzles.</p>
       <p>The line under the grid shows the digits the selected cell could be. This updates automatically whenever a cell changes.</p>
-      <p>Use 'Save' to store the current puzzle state so you can return to the beginning if you want.</p>
+      <p><strong>Save</strong> names the puzzle and adds it to Puzzles, so you can come back to it. <strong>Reset</strong> takes the puzzle back to its start: as it was scanned, imported or opened, or the digits you typed in before running any searches.</p>
       <h3>Solve</h3>
       <p>Use a combination of different search methods to solve the puzzle. While one search is running the others are disabled; tap it again to stop it. Digits are coloured by the method that found them.</p>
       <ul>
@@ -358,7 +386,7 @@
         <li><strong>Solve</strong> - Not, Box, Column and Row search, each repeated while it finds anything, until solved or stuck. This is the 'All-rounder' approach on the Grade tab.</li>
         <li><strong>Tree Search</strong> - Used by 'Solve' when it gets stuck: picks the blank with the fewest options, tries one and carries on. If that leads to a contradiction it backs up and rules that digit out.</li>
       </ul>
-      <p>Use ‹ and › to step backwards and forwards digit by digit, or Reset to go back to before the last search. On Slow or Fast the Working panel explains each digit as it is found; on Ultra only the result is shown. You can switch speed part way through.</p>
+      <p>Use ‹ and › to step backwards and forwards digit by digit, or Undo to go back to before the last search. On Slow or Fast the Working panel explains each digit as it is found; on Ultra only the result is shown. You can switch speed part way through.</p>
       <h3>Grade</h3>
       <p>Every approach counts its <strong>looks</strong>: reading a square, checking whether a digit fits, or rubbing out a pencil mark. When an approach gets stuck it borrows the other searches, easiest first, and goes back to its own way as soon as one finds something. Only when none of them can make progress does it guess (Tree Search), and all the work spent on wrong guesses counts too.</p>
       <p>Guessing is hard for people, so a puzzle that can't be solved without it is rated at least Tough whatever its effort.</p>
@@ -398,6 +426,20 @@
       <div class="busy" id="scanBusy" hidden><div class="spinner"></div><span>Reading puzzle…</span></div>
     </div>
   </div>
+
+  <dialog id="save-dialog" aria-labelledby="save-title">
+    <form method="dialog">
+      <h2 id="save-title">Save puzzle</h2>
+      <label for="save-name">Name</label>
+      <input type="text" id="save-name" maxlength="40" autocomplete="off" required>
+      <p class="hint">It'll appear under Puzzles. Saving with the same name replaces it.</p>
+      <div class="row">
+        <button type="button" id="save-cancel">Cancel</button>
+        <button type="submit" value="save" class="primary">Save</button>
+      </div>
+      <div id="saved-list"></div>
+    </form>
+  </dialog>
 
   <div id="toast" role="status"></div>
 

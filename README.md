@@ -30,7 +30,7 @@ Deployed on Netlify from `master` (see `netlify.toml`).
 Source files: `src/` (DOM-free engine: `engine.js` grid model, `techniques.js` searches,
 `strategies.js` approaches, `grader.js` difficulty, `grade-worker.js` runs grading off the main thread),
 `script.js` (UI), `scan.js` (grid detection + digit recognition),
-`scan-ui.js` (scan review screen), `digit-model.js` (generated classifier weights), `sw.js` (offline cache).
+`scan-ui.js` (scan review screen), `install.js` (install button), `digit-model.js` (generated classifier weights), `sw.js` (offline cache).
 Bump `CACHE` in `sw.js` when you want installed copies to drop old files.
 
 ## How the scanner works
