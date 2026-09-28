@@ -1,0 +1,6 @@
+# v1 is the original hand-coded app: static files, main.js already built.
+# Deployed by its own Netlify project (bristoljon-sudoku-v1) at
+# v1.sudoku.bristoljon.uk.
+[build]
+  command = "rm -rf dist && mkdir dist && cp index.html main.js script.js styles.min.css dist/"
+  publish = "dist"
