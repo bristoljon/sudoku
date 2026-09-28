@@ -2,3 +2,7 @@ node_modules/
 creds.js
 creds.cjs
 tools/fonts.txt
+dist/
+
+# Local Netlify folder
+.netlify

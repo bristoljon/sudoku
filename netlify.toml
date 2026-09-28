@@ -1,0 +1,16 @@
+[build]
+  command = "npm run build:site"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Always revalidate the service worker and app shell so updates reach
+# installed copies; sw.js then handles offline caching itself.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(self)"

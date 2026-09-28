@@ -9,7 +9,7 @@ Pure JavaScript sudoku solver and difficulty grader with solving algorithm visua
 
 Info page <a href="http://bristoljon.uk/project/sudoku">here</a>
 <br/>
-Try the latest version <a href="http://bristoljon.uk/projects/sudoku">here</a>
+Try the latest version <a href="https://sudoku.bristoljon.uk">here</a>
 
 ## Development
 
@@ -18,8 +18,10 @@ npm install
 npm run watch    # rebuilds main.js on change
 npm run serve    # http://localhost:8080 (service workers + camera need localhost or https)
 npm run build    # minified main.js
-npm run deploy   # build + FTP upload (FTP_USER/FTP_PASS env vars or creds.cjs)
+npm run build:site  # build + assemble the deployable site in dist/
 ```
+
+Deployed on Netlify from `master` (see `netlify.toml`).
 
 Source files: `script.js` (solver + UI), `scan.js` (grid detection + digit recognition),
 `scan-ui.js` (scan review screen), `digit-model.js` (generated classifier weights), `sw.js` (offline cache).

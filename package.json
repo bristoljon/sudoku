@@ -7,7 +7,7 @@
     "build": "esbuild script.js --bundle --minify --target=es2018 --outfile=main.js",
     "watch": "esbuild script.js --bundle --target=es2018 --outfile=main.js --sourcemap --watch",
     "serve": "npx http-server -c-1 .",
-    "deploy": "npm run build && node deploy.js"
+    "build:site": "npm run build && rm -rf dist && mkdir -p dist/icons && cp index.html main.js sw.js manifest.webmanifest dist/ && cp icons/*.png dist/icons/"
   },
   "repository": {
     "type": "git",
@@ -21,8 +21,7 @@
   "homepage": "https://github.com/bristoljon/sudoku#readme",
   "dependencies": {},
   "devDependencies": {
-    "esbuild": "^0.27.0",
-    "basic-ftp": "^5.0.5"
+    "esbuild": "^0.27.0"
   },
   "type": "module"
 }
