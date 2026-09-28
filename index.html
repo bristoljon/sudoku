@@ -64,10 +64,14 @@
     .scan-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; background: var(--brand); color: #fff; }
     .scan-btn svg { width: 20px; height: 20px; }
     .scan-wrap { position: relative; }
-    .toolbar.sources { display: grid; grid-template-columns: 1fr 1fr; }
+    .toolbar.sources { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; }
     .toolbar.sources select { max-width: none; width: 100%; }
+    .toolbar.sources .seg button { padding: 6px 8px; }
+    .toolbar.sources .scan-btn { padding: 9px 10px; gap: 6px; }
+    .toolbar.sources select { padding: 0 4px 0 8px; }
+    .toolbar.actions > button { flex: 1; }
     .menu {
-      position: absolute; left: 0; top: calc(100% + 6px); z-index: 30; min-width: 100%;
+      position: absolute; left: 0; top: calc(100% + 6px); z-index: 30; min-width: 170px;
       background: var(--card); border-radius: var(--radius); padding: 4px;
       box-shadow: 0 6px 24px rgba(0,0,0,.25); display: flex; flex-direction: column;
     }
@@ -252,7 +256,7 @@
       <div class="scan-wrap">
         <button id="scanBtn" class="scan-btn" type="button" aria-haspopup="menu" aria-expanded="false">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a2 2 0 0 1 2-2h2l2-2h6l2 2h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="4"/></svg>
-          Scan puzzle
+          Scan
         </button>
         <div id="scanMenu" class="menu" role="menu" hidden>
           <button type="button" role="menuitem" id="scanTake">Take photo</button>
@@ -260,19 +264,17 @@
         </div>
       </div>
       <select id="puzzles" aria-label="Open a saved or example puzzle"></select>
-    </div>
-
-    <div class="toolbar">
-      <div class="group">
-        <button id="reset" type="button" title="Back to the start of this puzzle">Reset</button>
-        <button id="clear" type="button">Clear</button>
-        <button id="save" type="button">Save</button>
-      </div>
       <div class="seg" role="group" aria-label="Visualisation speed">
         <button type="button" class="visual" data-speed="250">Slow</button>
         <button type="button" class="visual active" data-speed="10">Fast</button>
         <button type="button" class="visual" data-speed="0">Ultra</button>
       </div>
+    </div>
+
+    <div class="toolbar actions">
+      <button id="reset" type="button" title="Back to the start of this puzzle">Reset</button>
+      <button id="clear" type="button">Clear</button>
+      <button id="save" type="button">Save</button>
     </div>
 
     <div class="puzzle">
@@ -370,7 +372,7 @@
 
     <details class="panel" id="instructions">
       <summary>How it works</summary>
-      <p><strong>Scan puzzle</strong> to import one from a newspaper, book or screenshot: take or choose a photo, check the digits it read (unsure ones are orange - tap to fix), then Import. If it misses the grid, use <em>Adjust corners</em>.</p>
+      <p><strong>Scan</strong> to import a puzzle from a newspaper, book or screenshot: take or choose a photo, check the digits it read (unsure ones are orange - tap to fix), then Import. If it misses the grid, use <em>Adjust corners</em>.</p>
       <p>Or enter digits yourself: tap a cell, then a number. On a keyboard you can type digits and use the arrow keys. Or pick one from Puzzles.</p>
       <p>The line under the grid shows the digits the selected cell could be. This updates automatically whenever a cell changes.</p>
       <p><strong>Save</strong> names the puzzle and adds it to Puzzles, so you can come back to it. <strong>Reset</strong> takes the puzzle back to its start: as it was scanned, imported or opened, or the digits you typed in before running any searches.</p>
