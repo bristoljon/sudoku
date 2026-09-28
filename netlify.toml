@@ -14,3 +14,11 @@
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "camera=(self)"
+
+# v1.sudoku.bristoljon.uk (a domain alias on this project) serves the v1
+# branch deploy: the original hand-coded app, tagged v1.0.
+[[redirects]]
+  from = "https://v1.sudoku.bristoljon.uk/*"
+  to = "https://v1--bristoljon-sudoku.netlify.app/:splat"
+  status = 200
+  force = true
