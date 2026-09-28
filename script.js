@@ -1,4 +1,5 @@
-require('babel-polyfill');
+import { initScanner } from './scan-ui.js';
+import { toast } from './toast.js';
 
 const Sudoku = (() => {
   const DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
@@ -127,67 +128,75 @@ const Sudoku = (() => {
     return ar;
   };
 
-  // Key press event handler (bound to cell object)
-  Cell.prototype.navigate = function (event) {
-    var current = this.value;
-    switch (event.keyCode) {
-      case 37: // Left
-        if (this.x > 0) {
-          Sudoku.getCell(this.x -1, this.y).el.focus()
-        }
-        else {
-          Sudoku.getCell(8, this.y - 1).el.focus()
-        }
+  // Keyboard handler (bound to cell object). Arrow keys move, 1-9 enter,
+  // backspace / delete / 0 / space clear.
+  Cell.prototype.onKey = function (event) {
+    var move = null;
+    switch (event.key) {
+      case 'ArrowLeft':
+        move = this.x > 0 ? [this.x - 1, this.y] : this.y > 0 ? [8, this.y - 1] : null;
         break;
-      case 38: // Up
-        if (this.y > 0) {
-          Sudoku.getCell(this.x, this.y -1).el.focus()
-        }
+      case 'ArrowUp':
+        if (this.y > 0) move = [this.x, this.y - 1];
         break;
-      case 39: // Right
-        if (this.x < 8) {
-          Sudoku.getCell(this.x + 1, this.y).el.focus()
-        }
-        else {
-          Sudoku.getCell(0, this.y + 1).el.focus()
-        }
+      case 'ArrowRight':
+        move = this.x < 8 ? [this.x + 1, this.y] : this.y < 8 ? [0, this.y + 1] : null;
         break;
-      case 40: //Down
-        if (this.y < 8) {
-          Sudoku.getCell(this.x, this.y + 1).el.focus()
-        }
+      case 'ArrowDown':
+        if (this.y < 8) move = [this.x, this.y + 1];
         break;
-      case 46: // Delete key
-      case 8: // Backspace
-        // Reverse the changes made by updateGroup by passing digit to re add to maybes list
-        if (current !== '') {
-          this.updateGroup(current);
-        }
-        this.value = '';
-        this.el.value = '';
-        break;
+      case 'Delete':
+      case 'Backspace':
+      case '0':
+      case ' ':
+        event.preventDefault();
+        this.erase();
+        return;
+      case 'Tab':
+        return;
       default:
-        var key = String.fromCharCode(event.keyCode);
-
-        if (this.couldBe(key)) {
-          this.el.style.color = '#222';
-          if (key !== current && current !== '') {
-            // Add the deleted digit to the groups' maybes lists
-            this.updateGroup(current);
-            this.maybes.add(current);
-          }
-          this.value = key;
-          this.el.value = key;
-          try {
-            this.updateGroup();
-          }
-          catch (e) { alert(e) }
-
-        }
-        else {
-          event.preventDefault()
-        }
+        if (/^[1-9]$/.test(event.key)) this.enter(event.key);
+        event.preventDefault();
+        return;
     }
+    event.preventDefault();
+    if (move) Sudoku.select(Sudoku.getCell(move[0], move[1]));
+  };
+
+  // Enter a digit (from keyboard or on-screen keypad)
+  Cell.prototype.enter = function (key) {
+    var current = this.value;
+    if (key === current) return;
+    if (!this.couldBe(key)) {
+      this.el.classList.remove('nope');
+      void this.el.offsetWidth; // restart animation
+      this.el.classList.add('nope');
+      toast(key + " can't go there - it's already in this row, column or box");
+      return;
+    }
+    this.el.style.color = '#222';
+    if (current !== '') {
+      // Add the replaced digit back to the groups' maybes lists
+      this.updateGroup(current);
+      this.maybes.add(current);
+    }
+    this.value = key;
+    this.el.value = key;
+    try {
+      this.updateGroup();
+    }
+    catch (e) { toast(e.message || String(e)) }
+    this.showPopover();
+  };
+
+  Cell.prototype.erase = function () {
+    var current = this.value;
+    if (current === '') return;
+    // Reverse the changes made by updateGroup by passing digit to re add to maybes list
+    this.updateGroup(current);
+    this.value = '';
+    this.el.value = '';
+    this.showPopover();
   };
 
   // Returns true if digit is found in cells maybes list
@@ -273,13 +282,18 @@ const Sudoku = (() => {
     })
   };
 
-  Cell.prototype.showPopover = function (e) {
-    document.getElementById('popover')
-      .innerHTML = 'Maybe: ' + [...this.maybes].sort()
+  Cell.prototype.showPopover = function () {
+    var maybes = [...this.maybes].sort();
+    document.getElementById('popover').textContent = this.value
+      ? 'Row ' + (this.y + 1) + ', column ' + (this.x + 1) + ': ' + this.value
+      : 'Could be: ' + maybes.join(' ');
+    document.querySelectorAll('#keypad [data-digit]').forEach(b => {
+      b.classList.toggle('dim', !this.value && !this.maybes.has(b.dataset.digit));
+    });
   };
 
   Cell.prototype.highlight = function (color) {
-    this.el.style.backgroundColor = color;
+    this.el.style.backgroundColor = color === 'white' ? '' : color;
   };
 
   var Sudoku = {
@@ -299,7 +313,7 @@ const Sudoku = (() => {
 
       for (var y=0; y<9; y++ ) {
         for (var x=0; x<9; x++ ) {
-          var cell = new Cell(x,y);
+          let cell = new Cell(x,y);
           if (y < 3) {
             if (x < 3) cell.box = 0;
             else if (x < 6) cell.box = 1;
@@ -315,26 +329,60 @@ const Sudoku = (() => {
             else if (x < 6) cell.box = 7;
             else cell.box = 8;
           }
+          // Read-only inputs: keeps el.value for the solver visuals but stops
+          // mobile keyboards popping up - digits come from the keypad instead
           cell.el = document.createElement('input');
-          cell.el.setAttribute('type','number');
+          cell.el.setAttribute('type', 'text');
           cell.el.setAttribute('class', 'cell');
-          cell.el.setAttribute('maxlength','1');
+          cell.el.setAttribute('readonly', '');
+          cell.el.setAttribute('inputmode', 'none');
+          cell.el.setAttribute('autocomplete', 'off');
+          cell.el.setAttribute('aria-label', 'Row ' + (y + 1) + ' column ' + (x + 1));
           var box = document.getElementById(cell.box);
           box.appendChild(cell.el);
 
-          cell.el.addEventListener('keyup', cell.navigate.bind(cell));
-          cell.el.addEventListener('keydown', (e) => {
-            e.preventDefault();
-          });
-          cell.el.addEventListener('keypress', (e) => {
-            e.preventDefault();
-          });
-          cell.el.addEventListener('click', cell.showPopover.bind(cell));
+          cell.el.addEventListener('keydown', cell.onKey.bind(cell));
+          cell.el.addEventListener('focus', () => this.select(cell, true));
           cell.el.addEventListener('mouseover', cell.showPopover.bind(cell));
 
           this.cells.push(cell);
         }
       }
+    },
+
+    // Mark the selected cell and its row / column / box
+    select: function (cell, fromFocus) {
+      if (!cell) return;
+      this.selected = cell;
+      this.cells.forEach(c => {
+        c.el.classList.toggle('sel', c === cell);
+        c.el.classList.toggle('peer', c !== cell &&
+          (c.x === cell.x || c.y === cell.y || c.box === cell.box));
+      });
+      if (!fromFocus) cell.el.focus({ preventScroll: true });
+      cell.showPopover();
+    },
+
+    // Load a scanned grid (array of 81 numbers, 0 = blank) as a new puzzle
+    importGrid: function (grid) {
+      if (this._timer) this._stop = true;
+      this.clear();
+      this.cells.forEach((cell, i) => {
+        if (grid[i]) {
+          cell.value = String(grid[i]);
+          cell.el.value = cell.value;
+          cell.el.style.color = '#222';
+        }
+      });
+      this.cells.forEach(cell => {
+        cell.updated = true;
+        if (cell.value) return;
+        cell.getRemaining('x').concat(cell.getRemaining('y'), cell.getRemaining('box'))
+          .forEach(other => { if (other.value) cell.maybes.delete(other.value) });
+      });
+      this.history = [];
+      this.savestep();
+      this.save('puzzle');
     },
 
     getGroup: function (group, id) {
@@ -676,7 +724,9 @@ const Sudoku = (() => {
         save.color = cell.el.style.color;
         return save;
       });
-      if (name) localStorage.setItem(name, JSON.stringify(cells));
+      if (name) {
+        try { localStorage.setItem(name, JSON.stringify(cells)) } catch (e) {}
+      }
       else return JSON.stringify(cells)
     },
 
@@ -690,7 +740,8 @@ const Sudoku = (() => {
         cells = JSON.parse(this.history[step])
       }
       else {
-        cells = JSON.parse(localStorage.getItem(store));
+        try { cells = JSON.parse(localStorage.getItem(store)) } catch (e) {}
+        if (!cells) return;
       }
       for (var i = 0; i < cells.length; i++) {
         for (var prop in cells[i]) {
@@ -709,137 +760,116 @@ const Sudoku = (() => {
   };
 
   // Event listeners
-  document.getElementById('clear').addEventListener('click', () => {
+  const $ = id => document.getElementById(id);
+
+  $('clear').addEventListener('click', () => {
     Sudoku.clear()
   });
 
-  document.getElementById('save').addEventListener('click', () => {
-    Sudoku.save('puzzle')
+  $('save').addEventListener('click', () => {
+    Sudoku.save('puzzle');
+    toast('Saved - Load will bring you back to this point');
   });
 
-  document.getElementById('load').addEventListener('click', () => {
-    Sudoku.load('puzzle')
+  $('load').addEventListener('click', () => {
+    Sudoku.load('puzzle');
+if (!Sudoku.history.length) Sudoku.savestep();
+
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
   });
 
-  document.getElementsByClassName('visual').call('addEventListener', 'click',
-  (e) => {
-    var buttons = document.getElementsByClassName('visual');
-    [].forEach.call(buttons, (el) => {
-        el.classList.remove('active');
-    });
-    e.target.classList.add('active');
-    switch (e.target.innerText) {
-      case 'SLOW':
-        Sudoku.config.visuals = 250
-        break;
-      case 'FAST':
-        Sudoku.config.visuals = 10;
-        break;
-      case 'ULTRA':
-        Sudoku.config.visuals = 0;
-        break;
-    }
-  });
+  document.querySelectorAll('.visual').forEach(btn => btn.addEventListener('click', (e) => {
+    document.querySelectorAll('.visual').forEach(el => el.classList.remove('active'));
+    e.currentTarget.classList.add('active');
+    Sudoku.config.visuals = Number(e.currentTarget.dataset.speed);
+  }));
 
-  document.getElementById('backStep').addEventListener('click', () => {
+  $('backStep').addEventListener('click', () => {
     Sudoku.step('back')
   });
 
-  document.getElementById('forwardStep').addEventListener('click', () => {
+  $('forwardStep').addEventListener('click', () => {
     Sudoku.step('forward')
   });
 
-  document.getElementById('notcheck').addEventListener('click', (e) => {
-    if (Sudoku.config.notcheck === false) {
-      Sudoku.config.notcheck = true;
-      e.target.classList.add('active');
+  // Not Check / Line Check / Tree Search toggles
+  document.querySelectorAll('.check').forEach(btn => btn.addEventListener('click', (e) => {
+    const el = e.currentTarget;
+    const on = !Sudoku.config[el.id];
+    Sudoku.config[el.id] = on;
+    el.classList.toggle('active', on);
+    el.setAttribute('aria-pressed', on);
+  }));
+
+  // On-screen keypad
+  const keypad = $('keypad');
+  keypad.addEventListener('pointerdown', e => e.preventDefault()); // keep cell focus
+  keypad.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    if (!Sudoku.selected) {
+      toast('Tap a cell first');
+      return;
     }
-    else {
-      Sudoku.config.notcheck = false;
-      e.target.classList.remove('active');
-    }
+    if (btn.dataset.digit) Sudoku.selected.enter(btn.dataset.digit);
+    else Sudoku.selected.erase();
   });
 
-  document.getElementById('linecheck').addEventListener('click', (e) => {
-    if (Sudoku.config.linecheck === false) {
-      Sudoku.config.linecheck = true;
-      e.target.classList.add('active');
-    }
-    else {
-      Sudoku.config.linecheck = false;
-      e.target.classList.remove('active');
-    }
-  });
-
-  document.getElementById('treesearch').addEventListener('click', (e) => {
-    if (Sudoku.config.treesearch === false) {
-      Sudoku.config.treesearch = true;
-      e.target.classList.add('active');
-    }
-    else {
-      Sudoku.config.treesearch = false;
-      e.target.classList.remove('active');
-    }
-  });
-
-  document.getElementsByClassName('solve').call('addEventListener', 'click',
-  (e) => {
-    console.time(e.target.value);
-    var buttons = document.getElementsByClassName('solve');
-    buttons.set('disabled', true);
-    var done = () => {
-      console.timeEnd(e.target.value)
-      buttons.set('disabled', false);
-      e.target.classList.remove('btn-danger');
-      e.target.classList.add('btn-success');
-    }
-
+  const solveButtons = document.querySelectorAll('.solve');
+  solveButtons.forEach(btn => btn.addEventListener('click', (e) => {
+    const target = e.currentTarget;
+    const name = target.textContent.trim();
     // Check Sudoku is not currently scanning
-    if (!Sudoku._timer) {
-
-      var run = (method, arg) => {
-        return Sudoku.run(method, false, arg)
-      };
-
-      e.target.disabled = false;
-      e.target.classList.remove('btn-success');
-      e.target.classList.add('btn-danger');
-
-      function choice(btn) {
-        switch (btn) {
-          case 'Not Search':
-            return run(Sudoku.update);
-          case 'Box Search':
-            return run(Sudoku.search, 'box');
-          case 'Column Search':
-            return run(Sudoku.search, 'x');
-          case 'Row Search':
-            return run(Sudoku.search, 'y');
-          case 'Solve':
-            return Sudoku.solve()
-          default:
-            console.log('No handler found')
-            break;
-        }
-      };
-
-      choice(e.target.value)
-        .then(done)
-        .catch( e => {
-          done();
-          alert(e);
-        });
-    }
-    else {
+    if (Sudoku._timer) {
       Sudoku._stop = true;
+      return;
     }
+    console.time(name);
+    solveButtons.forEach(b => { b.disabled = true });
+    target.disabled = false;
+    target.classList.add('running');
+    const done = () => {
+      console.timeEnd(name);
+      solveButtons.forEach(b => { b.disabled = false });
+      target.classList.remove('running');
+    };
+    const run = (method, arg) => Sudoku.run(method, false, arg);
+    const choice = {
+      notsearch: () => run(Sudoku.update),
+      boxsearch: () => run(Sudoku.search, 'box'),
+      colsearch: () => run(Sudoku.search, 'x'),
+      rowsearch: () => run(Sudoku.search, 'y'),
+      solve: () => Sudoku.solve(),
+    }[target.id];
+    choice()
+      .then(done)
+      .catch(err => {
+        done();
+        toast(err && err.message ? err.message : String(err));
+      });
+  }));
 
+  initScanner({
+    onImport: (grid) => {
+      Sudoku.importGrid(grid);
+      toast('Imported ' + grid.filter(Boolean).length + ' digits and saved as your start position');
+    },
   });
+
   return Sudoku
 })();
 
 Sudoku.init();
-if (!localStorage.hasOwnProperty('puzzle')) {
-  localStorage.setItem('puzzle', '[{"value":"","maybes":["1","2","3","7","8"],"updated":true},{"value":"","maybes":["1","3","8","9"],"updated":true},{"value":"","maybes":["7","8","9"],"updated":true},{"value":"","maybes":["1","3","6","7","9"],"updated":true},{"value":"","maybes":["1","3","6","7","9"],"updated":true},{"value":"","maybes":["3","6","7"],"updated":true},{"value":"4","maybes":["3","4","6","8"],"updated":true},{"value":"5","maybes":["2","3","5","6"],"updated":true},{"value":"","maybes":["2","3","6","8"],"updated":true},{"value":"","maybes":["2","3","5","8"],"updated":true},{"value":"","maybes":["3","4","5","8","9"],"updated":true},{"value":"6","maybes":["4","5","6","8","9"],"updated":true},{"value":"","maybes":["3","9"],"updated":true},{"value":"","maybes":["3","4","9"],"updated":true},{"value":"","maybes":["3","4"],"updated":true},{"value":"","maybes":["3","8"],"updated":true},{"value":"7","maybes":["2","3","7"],"updated":true},{"value":"1","maybes":["1","2","3","8"],"updated":true},{"value":"","maybes":["1","3","7"],"updated":true},{"value":"","maybes":["1","3","4"],"updated":true},{"value":"","maybes":["4","7"],"updated":true},{"value":"5","maybes":["1","3","5","6","7"],"updated":true},{"value":"2","maybes":["1","2","3","4","6","7"],"updated":true},{"value":"8","maybes":["3","4","6","7","8"],"updated":true},{"value":"","maybes":["3","6"],"updated":true},{"value":"","maybes":["3","6"],"updated":true},{"value":"9","maybes":["3","6","9"],"updated":true},{"value":"","maybes":["1","5"],"updated":true},{"value":"","maybes":["1","4","5"],"updated":true},{"value":"2","maybes":["2","4","5"],"updated":true},{"value":"","maybes":["1","3","6","7"],"updated":true},{"value":"","maybes":["1","3","4","5","6","7"],"updated":true},{"value":"9","maybes":["3","4","5","6","7","9"],"updated":true},{"value":"","maybes":["3","6"],"updated":true},{"value":"8","maybes":["1","3","4","6","8"],"updated":true},{"value":"","maybes":["3","4","6"],"updated":true},{"value":"6","maybes":["1","6","8"],"updated":true},{"value":"","maybes":["1","4","8","9"],"updated":true},{"value":"3","maybes":["3","4","8","9"],"updated":true},{"value":"","maybes":["1","2"],"updated":true},{"value":"","maybes":["1","4"],"updated":true},{"value":"","maybes":["2","4"],"updated":true},{"value":"7","maybes":["7","9"],"updated":true},{"value":"","maybes":["1","4","9"],"updated":true},{"value":"5","maybes":["4","5"],"updated":true},{"value":"","maybes":["1","5"],"updated":true},{"value":"7","maybes":["1","4","5","7","9"],"updated":true},{"value":"","maybes":["4","5","9"],"updated":true},{"value":"8","maybes":["1","3","6","8"],"updated":true},{"value":"","maybes":["1","3","4","5","6"],"updated":true},{"value":"","maybes":["3","4","5","6"],"updated":true},{"value":"2","maybes":["2","3","6","9"],"updated":true},{"value":"","maybes":["1","3","4","6","9"],"updated":true},{"value":"","maybes":["3","4","6"],"updated":true},{"value":"9","maybes":["3","5","7","9"],"updated":true},{"value":"","maybes":["3","5"],"updated":true},{"value":"","maybes":["5","7"],"updated":true},{"value":"4","maybes":["2","3","4","6","7"],"updated":true},{"value":"8","maybes":["3","5","6","7","8"],"updated":true},{"value":"1","maybes":["1","2","3","5","6","7"],"updated":true},{"value":"","maybes":["3","5","6"],"updated":true},{"value":"","maybes":["2","3","6"],"updated":true},{"value":"","maybes":["2","3","6","7"],"updated":true},{"value":"4","maybes":["3","4","5","7","8"],"updated":true},{"value":"2","maybes":["2","3","5","8"],"updated":true},{"value":"","maybes":["5","7","8"],"updated":true},{"value":"","maybes":["3","6","7","9"],"updated":true},{"value":"","maybes":["3","5","6","7","9"],"updated":true},{"value":"","maybes":["3","5","6","7"],"updated":true},{"value":"1","maybes":["1","3","5","6","8","9"],"updated":true},{"value":"","maybes":["3","6","9"],"updated":true},{"value":"","maybes":["3","6","7","8"],"updated":true},{"value":"","maybes":["3","5","7","8"],"updated":true},{"value":"6","maybes":["3","5","6","8"],"updated":true},{"value":"1","maybes":["1","5","7","8"],"updated":true},{"value":"","maybes":["2","3","7","9"],"updated":true},{"value":"","maybes":["3","5","7","9"],"updated":true},{"value":"","maybes":["2","3","5","7"],"updated":true},{"value":"","maybes":["3","5","8","9"],"updated":true},{"value":"","maybes":["2","3","4","9"],"updated":true},{"value":"","maybes":["2","3","4","7","8"],"updated":true}]')
+let hasPuzzle = false;
+try { hasPuzzle = !!localStorage.getItem('puzzle') } catch (e) {}
+if (!hasPuzzle) {
+  try { localStorage.setItem('puzzle', '[{"value":"","maybes":["1","2","3","7","8"],"updated":true},{"value":"","maybes":["1","3","8","9"],"updated":true},{"value":"","maybes":["7","8","9"],"updated":true},{"value":"","maybes":["1","3","6","7","9"],"updated":true},{"value":"","maybes":["1","3","6","7","9"],"updated":true},{"value":"","maybes":["3","6","7"],"updated":true},{"value":"4","maybes":["3","4","6","8"],"updated":true},{"value":"5","maybes":["2","3","5","6"],"updated":true},{"value":"","maybes":["2","3","6","8"],"updated":true},{"value":"","maybes":["2","3","5","8"],"updated":true},{"value":"","maybes":["3","4","5","8","9"],"updated":true},{"value":"6","maybes":["4","5","6","8","9"],"updated":true},{"value":"","maybes":["3","9"],"updated":true},{"value":"","maybes":["3","4","9"],"updated":true},{"value":"","maybes":["3","4"],"updated":true},{"value":"","maybes":["3","8"],"updated":true},{"value":"7","maybes":["2","3","7"],"updated":true},{"value":"1","maybes":["1","2","3","8"],"updated":true},{"value":"","maybes":["1","3","7"],"updated":true},{"value":"","maybes":["1","3","4"],"updated":true},{"value":"","maybes":["4","7"],"updated":true},{"value":"5","maybes":["1","3","5","6","7"],"updated":true},{"value":"2","maybes":["1","2","3","4","6","7"],"updated":true},{"value":"8","maybes":["3","4","6","7","8"],"updated":true},{"value":"","maybes":["3","6"],"updated":true},{"value":"","maybes":["3","6"],"updated":true},{"value":"9","maybes":["3","6","9"],"updated":true},{"value":"","maybes":["1","5"],"updated":true},{"value":"","maybes":["1","4","5"],"updated":true},{"value":"2","maybes":["2","4","5"],"updated":true},{"value":"","maybes":["1","3","6","7"],"updated":true},{"value":"","maybes":["1","3","4","5","6","7"],"updated":true},{"value":"9","maybes":["3","4","5","6","7","9"],"updated":true},{"value":"","maybes":["3","6"],"updated":true},{"value":"8","maybes":["1","3","4","6","8"],"updated":true},{"value":"","maybes":["3","4","6"],"updated":true},{"value":"6","maybes":["1","6","8"],"updated":true},{"value":"","maybes":["1","4","8","9"],"updated":true},{"value":"3","maybes":["3","4","8","9"],"updated":true},{"value":"","maybes":["1","2"],"updated":true},{"value":"","maybes":["1","4"],"updated":true},{"value":"","maybes":["2","4"],"updated":true},{"value":"7","maybes":["7","9"],"updated":true},{"value":"","maybes":["1","4","9"],"updated":true},{"value":"5","maybes":["4","5"],"updated":true},{"value":"","maybes":["1","5"],"updated":true},{"value":"7","maybes":["1","4","5","7","9"],"updated":true},{"value":"","maybes":["4","5","9"],"updated":true},{"value":"8","maybes":["1","3","6","8"],"updated":true},{"value":"","maybes":["1","3","4","5","6"],"updated":true},{"value":"","maybes":["3","4","5","6"],"updated":true},{"value":"2","maybes":["2","3","6","9"],"updated":true},{"value":"","maybes":["1","3","4","6","9"],"updated":true},{"value":"","maybes":["3","4","6"],"updated":true},{"value":"9","maybes":["3","5","7","9"],"updated":true},{"value":"","maybes":["3","5"],"updated":true},{"value":"","maybes":["5","7"],"updated":true},{"value":"4","maybes":["2","3","4","6","7"],"updated":true},{"value":"8","maybes":["3","5","6","7","8"],"updated":true},{"value":"1","maybes":["1","2","3","5","6","7"],"updated":true},{"value":"","maybes":["3","5","6"],"updated":true},{"value":"","maybes":["2","3","6"],"updated":true},{"value":"","maybes":["2","3","6","7"],"updated":true},{"value":"4","maybes":["3","4","5","7","8"],"updated":true},{"value":"2","maybes":["2","3","5","8"],"updated":true},{"value":"","maybes":["5","7","8"],"updated":true},{"value":"","maybes":["3","6","7","9"],"updated":true},{"value":"","maybes":["3","5","6","7","9"],"updated":true},{"value":"","maybes":["3","5","6","7"],"updated":true},{"value":"1","maybes":["1","3","5","6","8","9"],"updated":true},{"value":"","maybes":["3","6","9"],"updated":true},{"value":"","maybes":["3","6","7","8"],"updated":true},{"value":"","maybes":["3","5","7","8"],"updated":true},{"value":"6","maybes":["3","5","6","8"],"updated":true},{"value":"1","maybes":["1","5","7","8"],"updated":true},{"value":"","maybes":["2","3","7","9"],"updated":true},{"value":"","maybes":["3","5","7","9"],"updated":true},{"value":"","maybes":["2","3","5","7"],"updated":true},{"value":"","maybes":["3","5","8","9"],"updated":true},{"value":"","maybes":["2","3","4","9"],"updated":true},{"value":"","maybes":["2","3","4","7","8"],"updated":true}]') } catch (e) {}
 }
 Sudoku.load('puzzle');
+if (!Sudoku.history.length) Sudoku.savestep();
+
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}

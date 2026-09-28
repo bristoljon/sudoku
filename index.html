@@ -1,233 +1,300 @@
 <!DOCTYPE html>
-
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Sudoku Cracker</title>
+  <meta name="description" content="Sudoku solver with step-by-step algorithm visualisation. Scan a puzzle with your camera to import it.">
+  <meta name="theme-color" content="#1f2a44">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Sudoku">
 
-    <title>Sudoku Cracker</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #1b1f2a;
+      --muted: #5c6475;
+      --line: #2b3242;
+      --thin: #c9ced8;
+      --bg: #eef1f6;
+      --card: #ffffff;
+      --brand: #1f2a44;
+      --accent: #d9534f;
+      --sel: #fff3b0;
+      --peer: #eef3fb;
+      --radius: 10px;
+      --grid: min(calc(100vw - 24px), 460px);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      -webkit-tap-highlight-color: transparent;
+    }
+    body.noscroll { overflow: hidden; }
+    main { max-width: 480px; margin: 0 auto; padding: 0 12px 24px; }
 
-    <link href="styles.min.css" rel="stylesheet">
+    header.top {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      background: var(--brand); color: #fff;
+      padding: 10px 14px; margin: 0 -12px 10px;
+    }
+    header.top h1 { font-size: 18px; font-weight: 700; letter-spacing: .2px; }
 
-    <style type="text/css">
+    button {
+      font: inherit; font-weight: 600; border: 0; border-radius: 8px;
+      padding: 9px 12px; min-height: 40px; cursor: pointer;
+      background: #dde2ea; color: var(--ink);
+      touch-action: manipulation; user-select: none; -webkit-user-select: none;
+    }
+    button:disabled { opacity: .45; cursor: default; }
+    button:focus-visible { outline: 3px solid #7aa7ff; outline-offset: 1px; }
+    .primary { background: var(--accent); color: #fff; }
+    .scan-btn { display: inline-flex; align-items: center; gap: 6px; background: #fff; color: var(--brand); }
+    .scan-btn svg { width: 20px; height: 20px; }
 
-	* {
-		padding: 0;
-		margin: 0;
-		text-align: center;
-	}
+    .toolbar { display: flex; flex-wrap: wrap; gap: 6px; justify-content: space-between; margin-bottom: 10px; }
+    .toolbar .group { display: flex; gap: 6px; }
+    .seg { display: inline-flex; background: #dde2ea; border-radius: 8px; padding: 3px; }
+    .seg button { background: transparent; min-height: 34px; padding: 6px 10px; }
+    .seg button.active { background: var(--brand); color: #fff; }
 
-  body {
-    padding-top:10px;
-  }
+    /* Grid */
+    .puzzle {
+      width: var(--grid); height: var(--grid); margin: 0 auto;
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      border: 2px solid var(--line); background: var(--line); gap: 2px;
+      border-radius: 4px; overflow: hidden;
+    }
+    .box { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--thin); }
+    .cell {
+      width: 100%; height: 100%; min-width: 0; border: 0; border-radius: 0;
+      background: var(--card); color: #000;
+      text-align: center; font-weight: 700;
+      font-size: calc(var(--grid) / 9 * 0.56);
+      caret-color: transparent; cursor: pointer; outline: none;
+      -webkit-appearance: none; appearance: none;
+      transition: background-color .1s;
+    }
+    .cell.peer { background: var(--peer); }
+    .cell.sel { background: var(--sel); box-shadow: inset 0 0 0 2px #e0a800; }
+    .cell.nope { animation: nope .35s; }
+    @keyframes nope { 0%,100% { transform: none } 25% { transform: translateX(-3px) } 75% { transform: translateX(3px) } }
 
-	#options.blue{
-		margin-left:15px;
-	}
+    #popover { text-align: center; color: var(--muted); min-height: 22px; margin: 8px 0 6px; font-variant-numeric: tabular-nums; }
 
-	.puzzle {
-  	margin: 12px auto;
-  	width: 332px;
-  	height: 332px;
-    border: 1px #444 solid;
-  }
+    .keypad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; width: var(--grid); margin: 0 auto 12px; }
+    .keypad button { font-size: 22px; min-height: 48px; background: var(--card); box-shadow: 0 1px 2px rgba(0,0,0,.15); }
+    .keypad button.dim { color: #b7bcc6; }
+    .keypad .erase { font-size: 16px; }
 
-  .puzzle * {
-  	box-sizing: border-box;
-  	float:left;
-  }
+    .panel { background: var(--card); border-radius: var(--radius); padding: 10px; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+    .panel h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin-bottom: 6px; }
+    .row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .row > button { flex: 1 1 auto; }
 
-	.controls *, .checks * {
-		margin:2px;
-  }
+    .check { background: #eceff4; border: 2px solid transparent; }
+    .check::before { content: "○ "; }
+    .check.active::before { content: "● "; }
+    #notcheck.active { background: hotpink; color: #fff; }
+    #linecheck.active { background: olive; color: #fff; }
+    #treesearch.active { background: gray; color: #fff; }
 
-  .box {
-		border: 1px #444 solid;
-		width: 110px;
-		height: 110px;
-  }
+    .solve { color: #fff; text-shadow: 0 1px 1px rgba(0,0,0,.35); }
+    #notsearch { background: darkorchid; }
+    #boxsearch, #colsearch, #rowsearch { color: var(--ink); text-shadow: none; }
+    #boxsearch { background: chartreuse; }
+    #colsearch { background: deepskyblue; }
+    #rowsearch { background: orange; }
+    #solve { background: var(--accent); flex-basis: 100%; font-size: 17px; }
+    .solve.running { background: var(--ink) !important; }
+    .solve.running::after { content: " - stop"; }
 
-  .cell {
-  	border: 1px lightgray solid;
-  	height: 36px;
-  	width: 36px;
-    font-size: 1.7em;
-    font-weight: bold;
-  }
+    .history { display: flex; justify-content: center; gap: 10px; }
+    .history button { min-width: 64px; font-size: 18px; }
 
-	#popover {
-		border: 1px solid black;
-		padding: 5px;
-		margin-top: 10px;
-		background-color: white;
-	}
+    details.panel summary { font-weight: 700; cursor: pointer; }
+    details.panel p, details.panel li { margin-top: 8px; }
+    details.panel ul { padding-left: 18px; }
 
-	#instructions {
-		padding:20px;
-	}
+    #toast {
+      position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom));
+      transform: translate(-50%, 30px); opacity: 0; pointer-events: none;
+      background: rgba(20,24,33,.94); color: #fff; padding: 10px 14px; border-radius: 10px;
+      max-width: min(92vw, 420px); text-align: center; transition: .25s; z-index: 50;
+    }
+    #toast.show { opacity: 1; transform: translate(-50%, 0); }
 
-	#instructions *{
-		text-align: left;
-	}
-
-  input[type=number]::-webkit-outer-spin-button,
-  input[type=number]::-webkit-inner-spin-button {
-      -webkit-appearance: none;
-      margin: 0;
-  }
-
-  input[type=number] {
-      -moz-appearance:textfield;
-  }
-
-  .btn {
-    padding:6px 9px;
-    border: 0 none;
-    font-weight: 700;
-    text-transform: uppercase;
-  }
-
-  .btn:focus, .btn:active:focus, .btn.active:focus {
-    background-color: #d9534f;
-    outline: 0 none;
-  }
-
-  .checks {
-    margin-bottom: 6px;
-  }
-
-  .checks .btn:hover {
-    background-color: #d9534f;
-    outline: 0 none;
-  }
-
-  #notcheck.active {
-    background-color: hotpink;
-    text-decoration: none
-  }
-
-  #linecheck.active {
-    background-color: olive;
-    text-decoration: none
-  }
-
-  #treesearch.active {
-    background-color: gray;
-    text-decoration: none
-  }
-
-  #notsearch {
-    background-color: darkorchid
-  }
-
-  #boxsearch {
-    background-color: chartreuse
-  }
-
-  #colsearch {
-    background-color:  deepskyblue
-  }
-
-  #rowsearch {
-    background-color: orange
-  }
-
-  #myModal {
-    left: 50%;
-    top: 50%;
-    position: absolute;
-    transform: translate(-50%, -50%);
-    display:none;
-  }
-
-
-    </style>
-
+    /* Scanner sheet */
+    .sheet {
+      position: fixed; inset: 0; z-index: 40; background: rgba(10,14,22,.6);
+      display: flex; align-items: flex-end; justify-content: center; outline: none;
+    }
+    .sheet[hidden] { display: none; }
+    .sheet-inner {
+      position: relative; background: var(--bg); width: 100%; max-width: 520px; max-height: 100%;
+      overflow-y: auto; border-radius: 16px 16px 0 0;
+      padding: 12px 12px calc(14px + env(safe-area-inset-bottom));
+    }
+    @media (min-width: 560px) { .sheet { align-items: center; } .sheet-inner { border-radius: 16px; } }
+    .sheet header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .sheet h2 { font-size: 18px; }
+    .sheet .close { background: transparent; font-size: 26px; line-height: 1; padding: 4px 10px; }
+    .sheet .hint { color: var(--muted); margin-bottom: 8px; min-height: 42px; }
+    .stage { width: 100%; display: flex; justify-content: center; margin-bottom: 10px; }
+    #scanCanvas { touch-action: none; border-radius: 6px; background: #000; display: block; }
+    .sheet[data-mode="corners"] #scanPad { display: none; }
+    #scanPad { width: 100%; }
+    .busy {
+      position: absolute; inset: 0; display: flex; flex-direction: column; gap: 12px;
+      align-items: center; justify-content: center; background: rgba(238,241,246,.92);
+      border-radius: inherit; font-weight: 600;
+    }
+    .busy[hidden] { display: none; }
+    .spinner { width: 36px; height: 36px; border: 4px solid #c9ced8; border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
 <body>
-	<div id="options">
+  <main>
+    <header class="top">
+      <h1>Sudoku Cracker</h1>
+      <button id="scanBtn" class="scan-btn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a2 2 0 0 1 2-2h2l2-2h6l2 2h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="4"/></svg>
+        Scan
+      </button>
+    </header>
 
-		<input type="button" class="btn btn-danger" id="clear" value="Clear"/>
-		<input type="button" class="btn btn-danger" id="save" value="Save"/>
-		<input type="button" class="btn btn-danger" id="load" value="Load"/>
+    <div class="toolbar">
+      <div class="group">
+        <button id="clear" type="button">Clear</button>
+        <button id="save" type="button">Save</button>
+        <button id="load" type="button">Load</button>
+      </div>
+      <div class="seg" role="group" aria-label="Visualisation speed">
+        <button type="button" class="visual" data-speed="250">Slow</button>
+        <button type="button" class="visual active" data-speed="10">Fast</button>
+        <button type="button" class="visual" data-speed="0">Ultra</button>
+      </div>
+    </div>
 
-		<div class="blue btn-group">
-			<label class="btn btn-primary visual" id="visualSlow">
-				Slow
-			</label>
-			<label class="btn btn-primary visual active" id="visualFast">
-				Fast
-			</label>
-			<label class="btn btn-primary visual" id="visualOff" >
-				Ultra
-			</label>
-		</div>
-	</div>
+    <div class="puzzle">
+      <div class="box" id="0"></div>
+      <div class="box" id="1"></div>
+      <div class="box" id="2"></div>
+      <div class="box" id="3"></div>
+      <div class="box" id="4"></div>
+      <div class="box" id="5"></div>
+      <div class="box" id="6"></div>
+      <div class="box" id="7"></div>
+      <div class="box" id="8"></div>
+    </div>
 
-	<div class="puzzle">
-		<div class='box' id="0"></div>
-		<div class='box' id="1"></div>
-		<div class='box' id="2"></div>
-		<div class='box' id="3"></div>
-		<div class='box' id="4"></div>
-		<div class='box' id="5"></div>
-		<div class='box' id="6"></div>
-		<div class='box' id="7"></div>
-		<div class='box' id="8"></div>
-	</div>
+    <div id="popover" aria-live="polite">Tap a cell, then a number</div>
 
-  <div class="text-center checks">
-    <input type="button" class="btn btn-danger check" id="notcheck" value="Not Check"/>
-    <input type="button" class="btn btn-danger check" id="linecheck" value="Line Check"/>
-    <input type="button" class="btn btn-danger check" id="treesearch" value="Tree Search"/>
-	</div>
+    <div class="keypad" id="keypad">
+      <button type="button" data-digit="1">1</button>
+      <button type="button" data-digit="2">2</button>
+      <button type="button" data-digit="3">3</button>
+      <button type="button" data-digit="4">4</button>
+      <button type="button" data-digit="5">5</button>
+      <button type="button" data-digit="6">6</button>
+      <button type="button" data-digit="7">7</button>
+      <button type="button" data-digit="8">8</button>
+      <button type="button" data-digit="9">9</button>
+      <button type="button" class="erase" aria-label="Erase">⌫</button>
+    </div>
 
-	<div class="text-center controls">
-		<input type="button" class="btn btn-success solve" id="notsearch" value="Not Search"/>
-		<input type="button" class="btn btn-success solve" id="boxsearch" value="Box Search"/>
-		<input type="button" class="btn btn-success solve" id="colsearch" value="Column Search"/>
-		<input type="button" class="btn btn-success solve" id="rowsearch" value="Row Search"/>
-		<input type="button" class="btn btn-success solve" id="solve" value="Solve"/>
-	</div>
+    <section class="panel">
+      <h2>Solve</h2>
+      <div class="row">
+        <button type="button" class="solve" id="notsearch">Not Search</button>
+        <button type="button" class="solve" id="boxsearch">Box Search</button>
+        <button type="button" class="solve" id="colsearch">Column Search</button>
+        <button type="button" class="solve" id="rowsearch">Row Search</button>
+        <button type="button" class="solve" id="solve">Solve</button>
+      </div>
+    </section>
 
-  <div class="history">
-		<button id="backStep" type="button" class="btn btn-default" aria-label="Left Align">
-			&lt;
-		</button>
+    <section class="panel">
+      <h2>Extra checks</h2>
+      <div class="row">
+        <button type="button" class="check" id="notcheck" aria-pressed="false">Not Check</button>
+        <button type="button" class="check" id="linecheck" aria-pressed="false">Line Check</button>
+        <button type="button" class="check" id="treesearch" aria-pressed="false">Tree Search</button>
+      </div>
+    </section>
 
-		<button id="forwardStep" type="button" class="btn btn-default" aria-label="Left Align">
-			&gt;
-		</button>
-	</div>
+    <section class="panel">
+      <h2>Step through</h2>
+      <div class="history">
+        <button id="backStep" type="button" aria-label="Step back">‹</button>
+        <button id="forwardStep" type="button" aria-label="Step forward">›</button>
+      </div>
+    </section>
 
-  <div id="popover"></div>
-
-	<div id="instructions">
-		<h4>Instructions</h4>
-		<p>Enter digits in the grid; you can use arrow keys on keyboard or click / touch.</p>
-		<p>Hover over (or touch on mobile) any cell to view the digits it could be. This updates automatically whenever a cell changes.</p>
-		<p>Use 'Save' to store the current puzzle state so you can return to the beginning if you want.</p>
-		<p>Use a combination of different search methods to solve the puzzle. You should <strong>wait till one search has finished before doing the next</strong>. Although it will let you trigger multiple searches at once and it looks cool, it will probably fail to solve..</p>
-		<p>
-			<ul>
-				<li><strong>Not Search</strong> - For every blank that has changed state, remove all the digits in that cells row, column and box from it's 'maybes' list. If only one remains, enter it.</li>
+    <details class="panel" id="instructions">
+      <summary>How it works</summary>
+      <p><strong>Scan</strong> a puzzle from a newspaper, book or screenshot: take or choose a photo, check the digits it read (unsure ones are orange - tap to fix), then Import. If it misses the grid, use <em>Adjust corners</em>.</p>
+      <p>Or enter digits yourself: tap a cell, then a number. On a keyboard you can type digits and use the arrow keys.</p>
+      <p>The line under the grid shows the digits the selected cell could be. This updates automatically whenever a cell changes.</p>
+      <p>Use 'Save' to store the current puzzle state so you can return to the beginning if you want.</p>
+      <p>Use a combination of different search methods to solve the puzzle. You should <strong>wait till one search has finished before doing the next</strong>. Although it will let you trigger multiple searches at once and it looks cool, it will probably fail to solve..</p>
+      <ul>
+        <li><strong>Not Search</strong> - For every blank that has changed state, remove all the digits in that cell's row, column and box from its 'maybes' list. If only one remains, enter it.</li>
         <li><strong>Not Check</strong> - Additional method that checks all the affected cells whenever a value is entered to see if they can now be only one thing. Basically makes 'Not Search' redundant.</li>
-				<li><strong>Box Search</strong> - For each box, create list of cells where each digit could go. If only one place, enter it. If only 2 places, and they are on the same row or column, update the rest of the group's maybes lists</li>
+        <li><strong>Box Search</strong> - For each box, create list of cells where each digit could go. If only one place, enter it. If only 2 places, and they are on the same row or column, update the rest of the group's maybes lists</li>
         <li><strong>Line Check</strong> - Additional check after box search, if digit can only be in 2 or 3 cells on the same row or column, then it can't be anywhere else on that line</li>
-				<li><strong>Column Search</strong> - For each column, create list of cells where each digit could go. If only one place, enter it.</li>
-				<li><strong>Row Search</strong> - For each row, create list of cells where each digit could go. If only one place, enter it.</li>
-				<li><strong>Solve</strong> - Not, Box, Column and Row search until no blanks remain or maximum iterations reached. Now runs with visuals on thanks to async promises.</li>
+        <li><strong>Column Search</strong> - For each column, create list of cells where each digit could go. If only one place, enter it.</li>
+        <li><strong>Row Search</strong> - For each row, create list of cells where each digit could go. If only one place, enter it.</li>
+        <li><strong>Solve</strong> - Not, Box, Column and Row search until no blanks remain or maximum iterations reached.</li>
         <li><strong>Tree Search</strong> - Triggered if 'Solve' fails, finds a cell that can only be one of 2 digits and attempts to solve each scenario</li>
-			</ul>
-		</p>
-		<p>Use the arrow keys to scroll backwards and forward digit by digit</p>
-	</div>
+      </ul>
+      <p>Use ‹ and › to step backwards and forwards digit by digit. Tap a running search to stop it.</p>
+    </details>
+  </main>
 
-	<script type="text/javascript" src="main.js"></script>
+  <input type="file" id="scanFile" accept="image/*" hidden>
 
-<script type="text/javascript">
+  <div id="scanner" class="sheet" hidden tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="scanTitle" data-mode="review">
+    <div class="sheet-inner">
+      <header>
+        <h2 id="scanTitle">Check the scan</h2>
+        <button id="scanClose" class="close" type="button" aria-label="Close">×</button>
+      </header>
+      <p class="hint" id="scanHint"></p>
+      <div class="stage"><canvas id="scanCanvas"></canvas></div>
+      <div class="keypad" id="scanPad">
+        <button type="button" data-digit="1">1</button>
+        <button type="button" data-digit="2">2</button>
+        <button type="button" data-digit="3">3</button>
+        <button type="button" data-digit="4">4</button>
+        <button type="button" data-digit="5">5</button>
+        <button type="button" data-digit="6">6</button>
+        <button type="button" data-digit="7">7</button>
+        <button type="button" data-digit="8">8</button>
+        <button type="button" data-digit="9">9</button>
+        <button type="button" class="erase" aria-label="Blank">⌫</button>
+      </div>
+      <div class="row">
+        <button id="scanRetake" type="button">Retake</button>
+        <button id="scanAdjust" type="button">Adjust corners</button>
+        <button id="scanImport" type="button" class="primary">Import</button>
+      </div>
+      <div class="busy" id="scanBusy" hidden><div class="spinner"></div><span>Reading puzzle…</span></div>
+    </div>
+  </div>
 
-</script>
+  <div id="toast" role="status"></div>
 
+  <script src="main.js"></script>
 </body>
 </html>

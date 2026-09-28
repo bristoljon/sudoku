@@ -1,2 +1,4 @@
-node_modules/**
+node_modules/
 creds.js
+creds.cjs
+tools/fonts.txt
