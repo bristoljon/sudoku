@@ -1,10 +1,11 @@
 // Offline support: precache the app shell, then serve from cache while
 // refreshing in the background (stale-while-revalidate).
-const CACHE = 'sudoku-v1';
+const CACHE = 'sudoku-v2';
 const SHELL = [
   './',
   'index.html',
   'main.js',
+  'grade-worker.js',
   'manifest.webmanifest',
   'icons/icon-192.png',
   'icons/icon-512.png',

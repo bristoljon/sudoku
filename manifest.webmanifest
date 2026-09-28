@@ -1,7 +1,7 @@
 {
   "name": "Sudoku Cracker",
   "short_name": "Sudoku",
-  "description": "Sudoku solver with algorithm visualisation and camera scan-to-import",
+  "description": "Sudoku solver and difficulty grader with algorithm visualisation and camera scan-to-import",
   "id": "./",
   "start_url": "./",
   "scope": "./",

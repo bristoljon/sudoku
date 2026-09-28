@@ -2,6 +2,8 @@
 
 Pure JavaScript sudoku solver and difficulty grader with solving algorithm visualisation.
 
+- **Solve** – step through the search methods and watch each digit being found.
+- **Grade** – rates a puzzle by how much looking several human-style approaches need to solve it.
 - **Installable PWA** – works offline, add it to your home screen.
 - **Mobile friendly** – responsive grid and on-screen keypad.
 - **Scan to import** – take or pick a photo of a puzzle (paper or screenshot); the grid is found,
@@ -10,6 +12,7 @@ Pure JavaScript sudoku solver and difficulty grader with solving algorithm visua
 Info page <a href="http://bristoljon.uk/project/sudoku">here</a>
 <br/>
 Try the latest version <a href="https://sudoku.bristoljon.uk">here</a>
+(or the original hand-coded one <a href="https://v1.sudoku.bristoljon.uk">here</a>)
 
 ## Development
 
@@ -17,13 +20,16 @@ Try the latest version <a href="https://sudoku.bristoljon.uk">here</a>
 npm install
 npm run watch    # rebuilds main.js on change
 npm run serve    # http://localhost:8080 (service workers + camera need localhost or https)
-npm run build    # minified main.js
+npm run build    # minified main.js + grade-worker.js
+npm test         # solver / grader tests
 npm run build:site  # build + assemble the deployable site in dist/
 ```
 
 Deployed on Netlify from `master` (see `netlify.toml`).
 
-Source files: `script.js` (solver + UI), `scan.js` (grid detection + digit recognition),
+Source files: `src/` (DOM-free engine: `engine.js` grid model, `techniques.js` searches,
+`strategies.js` approaches, `grader.js` difficulty, `grade-worker.js` runs grading off the main thread),
+`script.js` (UI), `scan.js` (grid detection + digit recognition),
 `scan-ui.js` (scan review screen), `digit-model.js` (generated classifier weights), `sw.js` (offline cache).
 Bump `CACHE` in `sw.js` when you want installed copies to drop old files.
 

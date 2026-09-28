@@ -1,874 +1,726 @@
+import {
+  Grid, Contradiction, LIST, CELLS, rowOf, colOf, boxOf, parseValues,
+} from './src/engine.js';
+import {
+  createContext, solveWith, notSearch, hiddenSearch, GaveUp,
+} from './src/techniques.js';
+import { STRATEGIES, describePlan } from './src/strategies.js';
+import { grade, GUESSING_FLOOR } from './src/grader.js';
+import PUZZLES from './src/puzzles.js';
 import { initScanner } from './scan-ui.js';
 import { toast } from './toast.js';
 
-const Sudoku = (() => {
-  const DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
-  // Allows checking array of cells for value.
-  Array.prototype.has = function (item) {
-    for (var i = 0; i < this.length; i++) {
-      if (this[i].value === item) return true
-    }
-    return false
-  };
+// Digit colour shows which method solved the cell (matches the buttons).
+// Digits you enter yourself have no colour: they're the puzzle's givens.
+const COLORS = {
+  box: 'chartreuse',
+  col: 'deepskyblue',
+  row: 'orange',
+  tree: 'gray',
+  line: 'olive',
+  notsearch: 'darkorchid',
+  notcheck: 'hotpink',
+};
 
-  // Remove duplicated cells from array
-  Array.prototype.removeDuplicates = function () {
-    // Sort by cell.id number
-    var cells = this.sort( (a,b) => {
-      if (a.id < b.id) return -1;
-      if (a.id > b.id) return 1;
-      return 0
+const TECHNIQUE_NAMES = {
+  box: 'Box Search',
+  col: 'Column Search',
+  row: 'Row Search',
+  tree: 'Tree Search',
+  line: 'Line Check',
+  notsearch: 'Not Search',
+  notcheck: 'Not Check',
+};
+
+const MAX_HISTORY = 5000;
+
+const $ = id => document.getElementById(id);
+const fmt = n => Math.round(n).toLocaleString();
+const esc = text => String(text).replace(/[&<>"]/g, c => `&#${c.charCodeAt(0)};`);
+
+const store = {
+  get(key) {
+    try { return localStorage.getItem(key); } catch (e) { return null; }
+  },
+  set(key, value) {
+    try { localStorage.setItem(key, value); } catch (e) { /* private mode etc */ }
+  },
+};
+
+const Sudoku = {
+  grid: new Grid(),
+  colors: new Array(81).fill(''),
+  els: [],
+  lit: new Set(),
+  selected: -1,
+  config: {
+    visuals: 10,
+    notcheck: false,
+    linecheck: false,
+    treesearch: false,
+  },
+  history: [],
+  current: -1,
+  running: null,
+  beforeRun: null,
+
+  // Read-only inputs: they hold the digits and solver visuals but don't pop
+  // up a mobile keyboard - digits come from the keypad (or a real keyboard)
+  init() {
+    CELLS.forEach(i => {
+      const el = document.createElement('input');
+      el.setAttribute('type', 'text');
+      el.setAttribute('class', 'cell');
+      el.setAttribute('readonly', '');
+      el.setAttribute('inputmode', 'none');
+      el.setAttribute('autocomplete', 'off');
+      el.setAttribute('aria-label', `Row ${rowOf(i) + 1} column ${colOf(i) + 1}`);
+      $(String(boxOf(i))).appendChild(el);
+      el.addEventListener('keydown', e => this.onKey(i, e));
+      el.addEventListener('focus', () => this.select(i, true));
+      el.addEventListener('mouseover', () => this.showPopover(i));
+      this.els[i] = el;
     });
-    var ar = [];
-    ar.push(cells[0]);
-    for (var i = 1; i < cells.length; i++) {
-      if (cells[i].id !== ar[ar.length-1].id) {
-        ar.push(cells[i])
-      }
-    };
-    return ar
-  };
+  },
 
-  Array.prototype.getBlanks = function () {
-    var ar = [];
-    for (var i =0; i < this.length; i++) {
-      if (this[i].value === '') ar.push(this[i])
+  // Rendering
+
+  render(i) {
+    const el = this.els[i];
+    el.value = this.grid.values[i] || '';
+    el.style.color = this.colors[i];
+    if (!this.lit.has(i)) el.style.backgroundColor = '';
+  },
+
+  renderAll() {
+    CELLS.forEach(i => this.render(i));
+    if (this.selected >= 0) this.showPopover(this.selected);
+  },
+
+  highlight(i, color, ghost) {
+    this.lit.add(i);
+    const el = this.els[i];
+    el.style.backgroundColor = color;
+    if (ghost) {
+      el.value = ghost;
+      el.style.color = '#666';
     }
-    return ar;
-  };
+  },
 
-  Array.prototype.removeBlanks = function () {
-    var ar = [];
-    for (var i =0; i < this.length; i++) {
-      if (this[i].value !== '') ar.push(this[i])
-    }
-    return ar;
-  };
+  clearHighlights() {
+    const lit = [...this.lit];
+    this.lit.clear();
+    lit.forEach(i => this.render(i));
+  },
 
-  // Returns the cells that are flagged as updated i.e. when their maybes list has changed
-  Array.prototype.getUpdated = function () {
-    var ar = [];
-    for (var i =0; i < this.length; i++) {
-      if (this[i].updated === true) ar.push(this[i])
-    }
-    return ar;
-  };
+  // Mark the selected cell and its row / column / box
+  select(i, fromFocus) {
+    this.selected = i;
+    this.els.forEach((el, j) => {
+      el.classList.toggle('sel', j === i);
+      el.classList.toggle('peer', j !== i
+        && (rowOf(j) === rowOf(i) || colOf(j) === colOf(i) || boxOf(j) === boxOf(i)));
+    });
+    if (!fromFocus) this.els[i].focus({ preventScroll: true });
+    this.showPopover(i);
+  },
 
-  // Takes a cell prototype method (as a string) and calls it on all cells in
-  // the array. e.g. cells.all('highlight','white')
-  Array.prototype.all = function (method, ...args) {
-    for (var i =0; i < this.length; i++) {
-      this[i][method].call(this[i], args)
-    }
-    return this;
-  };
-
-  // Returns 'x' or 'y' if selection are all in the same one. Used by paircheck
-  Array.prototype.areSameGroup = function () {
-    var last = this[this.length - 1];
-    if (this.every( cell => { return cell.x === last.x })) return 'x';
-    if (this.every( cell => { return cell.y === last.y })) return 'y';
-    return false
-  };
-
-  // Removes cells from selection, expects array of cells. Used by paircheck.
-  // Bit of a hack actually, needs revisiting
-  Array.prototype.removeCells = function (cells) {
-    return this.filter( cell => {
-      var include = true;
-      for (let i =0; i < cells.length; i++) {
-        if (cell.id === cells[i].id) include = false
-      }
-      return include
-    })
-  };
-
-  // Custom jQuery selector replacements to allow setting attributes of
-  // HTMLCollections
-  HTMLCollection.prototype.set = function (attribute, flag) {
-    for (var i = 0; i < this.length; i++) {
-      this[i][attribute] = flag
-    }
-  };
-
-  // Same but for calling methods of elements in an HTMLCollection, used
-  // for adding event listeners to solve buttons.
-  HTMLCollection.prototype.call = function (method, ...args) {
-    for (var i = 0; i < this.length; i++) {
-      this[i][method].apply(this[i], args)
-    }
-  };
-
-  NodeList.prototype.call = HTMLCollection.prototype.call;
-
-  NodeList.prototype.set = HTMLCollection.prototype.set;
-
-  // Cell constructor that adds unique ID to each one
-  var Cell = (function() {
-    var counter = 0;
-    return function (x,y) {
-      this.x = x;
-      this.y = y;
-      this.id = counter++;
-      this.maybes = new Set(DIGITS);
-    };
-  })();
-
-  // Method to grab all the cells in a given cell's row, column and box
-  Cell.prototype.getRemaining = function (prop) {
-    var ar = [],
-      cells = Sudoku.cells;
-
-    for (var i=0; i<cells.length; i++) {
-      if (cells[i][prop] === this[prop] &&
-        cells[i].id !== this.id) {
-        ar.push(cells[i]);
-      }
-    }
-    return ar;
-  };
-
-  // Keyboard handler (bound to cell object). Arrow keys move, 1-9 enter,
-  // backspace / delete / 0 / space clear.
-  Cell.prototype.onKey = function (event) {
-    var move = null;
-    switch (event.key) {
-      case 'ArrowLeft':
-        move = this.x > 0 ? [this.x - 1, this.y] : this.y > 0 ? [8, this.y - 1] : null;
-        break;
-      case 'ArrowUp':
-        if (this.y > 0) move = [this.x, this.y - 1];
-        break;
-      case 'ArrowRight':
-        move = this.x < 8 ? [this.x + 1, this.y] : this.y < 8 ? [0, this.y + 1] : null;
-        break;
-      case 'ArrowDown':
-        if (this.y < 8) move = [this.x, this.y + 1];
-        break;
-      case 'Delete':
-      case 'Backspace':
-      case '0':
-      case ' ':
-        event.preventDefault();
-        this.erase();
-        return;
-      case 'Tab':
-        return;
-      default:
-        if (/^[1-9]$/.test(event.key)) this.enter(event.key);
-        event.preventDefault();
-        return;
-    }
-    event.preventDefault();
-    if (move) Sudoku.select(Sudoku.getCell(move[0], move[1]));
-  };
-
-  // Enter a digit (from keyboard or on-screen keypad)
-  Cell.prototype.enter = function (key) {
-    var current = this.value;
-    if (key === current) return;
-    if (!this.couldBe(key)) {
-      this.el.classList.remove('nope');
-      void this.el.offsetWidth; // restart animation
-      this.el.classList.add('nope');
-      toast(key + " can't go there - it's already in this row, column or box");
-      return;
-    }
-    this.el.style.color = '#222';
-    if (current !== '') {
-      // Add the replaced digit back to the groups' maybes lists
-      this.updateGroup(current);
-      this.maybes.add(current);
-    }
-    this.value = key;
-    this.el.value = key;
-    try {
-      this.updateGroup();
-    }
-    catch (e) { toast(e.message || String(e)) }
-    this.showPopover();
-  };
-
-  Cell.prototype.erase = function () {
-    var current = this.value;
-    if (current === '') return;
-    // Reverse the changes made by updateGroup by passing digit to re add to maybes list
-    this.updateGroup(current);
-    this.value = '';
-    this.el.value = '';
-    this.showPopover();
-  };
-
-  // Returns true if digit is found in cells maybes list
-  Cell.prototype.couldBe = function (digit)  {
-    if (this.maybes.has(digit)) return true
-    return false
-  };
-
-  // Removes passed digit from maybes list and flags as updated
-  Cell.prototype.cantBe = function (digit)  {
-    this.maybes.delete(digit);
-    if (this.maybes.size < 1) {
-      throw new Error('Well one of us has made a mistake.. This puzzle appears to be unsolvable.')
-    }
-    else if (Sudoku.config.notcheck &&
-        !this.value &&
-        this.canOnlyBe()) {
-            this.is(this.canOnlyBe(), 'notcheck');
-        }
-    else this.updated = true;
-  };
-
-  // Adds digit to maybes list and flags as updated
-  Cell.prototype.canBe = function (digit)  {
-    this.maybes.add(digit);
-    this.updated = true;
-  };
-
-  // Checks maybes set, if only one digit, returns it. Otherwise false
-  Cell.prototype.canOnlyBe = function ()  {
-    if (this.maybes.size === 1) {
-      return [...this.maybes][0]
-    }
-    return false
-  };
-
-  // Sets the cell value and updates its groups, changes color to that passed so
-  // can identify what method solved that cell
-  Cell.prototype.is = function (digit, color) {
-    switch (color) {
-      case 'box':
-        color = 'chartreuse';
-        break;
-      case 'x':
-        color = 'deepskyblue';
-        break;
-      case 'y':
-        color = 'orange'
-        break;
-      case 'tree':
-        color = 'gray'
-        break;
-      case 'line':
-        color = 'olive';
-        break;
-      case 'notsearch':
-        color = 'darkorchid';
-        break;
-      case 'notcheck':
-        color = 'hotpink';
-        break;
-    }
-    this.el.value = digit;
-    this.value = digit;
-    this.el.style.color = color;
-    this.updateGroup();
-    Sudoku.savestep();
-  };
-
-  // Updates the cells in a given cells row, column and box when its value has changed
-  // Digit parameter is only used when user deletes a digit so the group can re-add it
-  Cell.prototype.updateGroup = function (digit) {
-    var cells = this.getRemaining('x')
-      .concat(this.getRemaining('y'))
-      .concat(this.getRemaining('box'))
-      .removeDuplicates();
-
-    cells.forEach( (cell) => {
-      if (!digit) {
-        cell.cantBe(this.value);
-      }
-      else cell.canBe(digit);
-    })
-  };
-
-  Cell.prototype.showPopover = function () {
-    var maybes = [...this.maybes].sort();
-    document.getElementById('popover').textContent = this.value
-      ? 'Row ' + (this.y + 1) + ', column ' + (this.x + 1) + ': ' + this.value
-      : 'Could be: ' + maybes.join(' ');
+  showPopover(i) {
+    const { values } = this.grid;
+    $('popover').textContent = values[i]
+      ? `Row ${rowOf(i) + 1}, column ${colOf(i) + 1}: ${values[i]}`
+      : `Could be: ${this.grid.candidates(i).join(' ')}`;
+    if (i !== this.selected) return;
     document.querySelectorAll('#keypad [data-digit]').forEach(b => {
-      b.classList.toggle('dim', !this.value && !this.maybes.has(b.dataset.digit));
+      b.classList.toggle('dim', !values[i] && !this.grid.couldBe(i, Number(b.dataset.digit)));
     });
-  };
+  },
 
-  Cell.prototype.highlight = function (color) {
-    this.el.style.backgroundColor = color === 'white' ? '' : color;
-  };
+  nope(i, text) {
+    const el = this.els[i];
+    el.classList.remove('nope');
+    void el.offsetWidth; // restart animation
+    el.classList.add('nope');
+    toast(text);
+  },
 
-  var Sudoku = {
-    cells: [],
-    config: {
-      visuals: 10,
-      linecheck: false,
-      treesearch: false,
-      notcheck: false
-    },
-    history: [],
+  // User input
 
-    // Generates an array of cells with x, y and box attributes
-    // Creates an input element and appends it to its box
-    // Adds keypress event listeners (and prevents deafults for mobile)
-    init: function () {
-
-      for (var y=0; y<9; y++ ) {
-        for (var x=0; x<9; x++ ) {
-          let cell = new Cell(x,y);
-          if (y < 3) {
-            if (x < 3) cell.box = 0;
-            else if (x < 6) cell.box = 1;
-            else cell.box = 2;
-          }
-          else if (y < 6) {
-            if (x < 3) cell.box = 3;
-            else if (x < 6) cell.box = 4;
-            else cell.box = 5;
-          }
-          else {
-            if (x < 3) cell.box = 6;
-            else if (x < 6) cell.box = 7;
-            else cell.box = 8;
-          }
-          // Read-only inputs: keeps el.value for the solver visuals but stops
-          // mobile keyboards popping up - digits come from the keypad instead
-          cell.el = document.createElement('input');
-          cell.el.setAttribute('type', 'text');
-          cell.el.setAttribute('class', 'cell');
-          cell.el.setAttribute('readonly', '');
-          cell.el.setAttribute('inputmode', 'none');
-          cell.el.setAttribute('autocomplete', 'off');
-          cell.el.setAttribute('aria-label', 'Row ' + (y + 1) + ' column ' + (x + 1));
-          var box = document.getElementById(cell.box);
-          box.appendChild(cell.el);
-
-          cell.el.addEventListener('keydown', cell.onKey.bind(cell));
-          cell.el.addEventListener('focus', () => this.select(cell, true));
-          cell.el.addEventListener('mouseover', cell.showPopover.bind(cell));
-
-          this.cells.push(cell);
-        }
-      }
-    },
-
-    // Mark the selected cell and its row / column / box
-    select: function (cell, fromFocus) {
-      if (!cell) return;
-      this.selected = cell;
-      this.cells.forEach(c => {
-        c.el.classList.toggle('sel', c === cell);
-        c.el.classList.toggle('peer', c !== cell &&
-          (c.x === cell.x || c.y === cell.y || c.box === cell.box));
-      });
-      if (!fromFocus) cell.el.focus({ preventScroll: true });
-      cell.showPopover();
-    },
-
-    // Load a scanned grid (array of 81 numbers, 0 = blank) as a new puzzle
-    importGrid: function (grid) {
-      if (this._timer) this._stop = true;
-      this.clear();
-      this.cells.forEach((cell, i) => {
-        if (grid[i]) {
-          cell.value = String(grid[i]);
-          cell.el.value = cell.value;
-          cell.el.style.color = '#222';
-        }
-      });
-      this.cells.forEach(cell => {
-        cell.updated = true;
-        if (cell.value) return;
-        cell.getRemaining('x').concat(cell.getRemaining('y'), cell.getRemaining('box'))
-          .forEach(other => { if (other.value) cell.maybes.delete(other.value) });
-      });
-      this.history = [];
-      this.savestep();
-      this.save('puzzle');
-    },
-
-    getGroup: function (group, id) {
-      var cells = this.cells,
-        ar = [];
-      for (var i=0; i < cells.length; i++) {
-        if (cells[i][group] === id) {
-          ar.push(cells[i]);
-        }
-      }
-      return ar;
-    },
-
-    getCell: function (x,y) {
-      var cells = this.cells;
-      for (var i=0; i < cells.length; i++) {
-        if (cells[i].x === x && cells[i].y === y) {
-          return cells[i]
-        }
-      }
-    },
-
-    solve: function () {
-      return new Promise( (resolve, reject) => {
-        var iterations = 0,
-            loop = () => {
-            var start = Sudoku.cells.getBlanks().length;
-            Sudoku.run(Sudoku.update, true)
-              .then( blanks => {
-                if (blanks) return Sudoku.run(Sudoku.search, true, 'box');
-              })
-              .then( blanks => {
-                if (blanks) return Sudoku.run(Sudoku.search, true, 'x');
-              })
-              .then( blanks => {
-                if (blanks) return Sudoku.run(Sudoku.search, true, 'y');
-              })
-              .then( blanks => {
-                var found = start - Sudoku.cells.getBlanks().length;
-                if (blanks && found && iterations < 10) {
-                  iterations++;
-                  loop()
-                }
-                else {
-                  resolve(blanks)
-                }
-              })
-              .catch( e => { reject(e) })
-            }
-        loop()
-      }).then(
-        (blanks) => {
-          if (blanks && Sudoku.config.treesearch) {
-            console.log('Unsuccessful, starting treesearch...');
-            return Sudoku.treesearch();
-          }
-          else if (!blanks) {
-            console.log('Successful')
-          }
-          else {
-            console.log('Unsuccessful, try enabling tree search');
-            return Promise.reject('Failed to solve. Try enabling Tree Search')
-          }
-        }
-      )
-    },
-
-    treesearch: function () {
-      var start = this.savestep(),
-          index = 0,
-          blanks = this.cells.getBlanks()
-            .sort( (a,b) => {
-              return a.maybes.size - b.maybes.size
-            });
-      return new Promise( (resolve, reject) => {
-        var blank = blanks[0],
-            options = [...blank.maybes],
-            loop = (options) => {
-              this.load('history', start);
-              blank.is(options[index++], 'tree');
-              this.solve().then(
-                (m) => { resolve(m) },
-                (e) => { loop(options) }
-              )
-            }
-        loop(options);
-      })
-    },
-
-    // Takes a generator method (bound to Sudoku object), creates an iterator.
-    // Returns a promise resolved when iterator is done or, if repeat flag is
-    // set - self invokes until no further values are found.
-    run: function (method, repeat, ...args) {
-      var self = this,
-          visuals = this.config.visuals,
-          method = method.bind(this);
-      return new Promise(function (resolve, reject) {
-        if (visuals && !repeat) {
-          self.runAsync(method, args[0]).then(
-            found => { resolve(found) },
-            reason => { reject(reason) }
-          )
-        }
-        else if (visuals && repeat) {
-          let loop = () => {
-            self.runAsync(method, args[0])
-              .then( found => {
-                var blanks = self.cells.getBlanks().length;
-                if (found && blanks) loop()
-                else resolve(blanks)
-              }, (reason) => {
-                reject(reason)
-              })
-          };
-          loop()
-        }
-        else if (!visuals && repeat) {
-          let loops = 0;
-          while (self.runSync(method, args[0])) {
-            loops++
-          }
-          resolve(self.cells.getBlanks().length)
-        }
-        else if (!visuals && !repeat) {
-          self.runSync(method, args[0]);
-          resolve(self.cells.getBlanks().length)
-        }
-        else console.log('you slipped through the net')
-      });
-    },
-
-    // Calls next on iterator at setintervals until generator is done or
-    // _stop flag is set to true.
-    // Fulfils promise with number of values found in last run
-    // Rejects if stopped
-    runAsync: function (method,...args) {
-      var self = this,
-        speed = this.config.visuals,
-        iterator = method.apply(this, args),
-        start = this.cells.getBlanks().length;
-      return new Promise(function (resolve, reject) {
-        self._timer = window.setInterval(() => {
-          var step = iterator.next();
-          if (self._stop && step.value >= 0 || step.done) {
-            window.clearInterval(self._timer);
-            self._timer = null;
-            if (self._stop) {
-              reject('Scan stopped');
-              self._stop = false;
-              self.cells.all('highlight', 'white');
-            }
-            else resolve(step.value);
-          }
-        }, speed);
-      });
-    },
-
-    // Synchronous / blocking iterator method, returns number of values
-    // found
-    runSync: function (method,...args) {
-      var self = this,
-        iterator = method.apply(this, args);
-
-      while (true) {
-        var state = iterator.next();
-        if (state.done) break;
-      }
-      return state.value
-    },
-
-
-    // Search every blank cells' row, column and box and remove any values
-    // found from it's maybes list. If only one remains, enter it.
-    update: function* () {
-      var blanks = this.cells.getBlanks().getUpdated(),
-          changed = 0;
-      for (var i = 0; i < blanks.length; i++) {
-        var blank = blanks[i];
-
-        var cells = blank.getRemaining('x')
-            .concat(blank.getRemaining('y'))
-            .concat(blank.getRemaining('box'))
-            .removeDuplicates()
-            .removeBlanks();
-
-        // Remove any values found in that cells' groups from it's maybes list
-        for (var j = 0; j < cells.length; j++) {
-          var cell = cells[j],
-              digit = cell.value;
-
-          if (digit !== '') {
-            cell.highlight('orange');
-            blank.cantBe(digit);
-            blank.highlight('green');
-            yield(changed)
-          }
-          cell.highlight('white');
-        }
-        // Sets value to digit in maybes list if only one remains
-        if (blank.canOnlyBe()) {
-          blank.is(blank.canOnlyBe(), 'notsearch')
-          changed++;
-        }
-        blank.highlight('white');
-        blank.updated = false;
-      }
-      return changed;
-    },
-
-    // Solve method that checks the possible position for each digit in the group
-    // If only one found, enters it. Yield statements are breakponts for visuals
-    // yield(changed) acts as stop point if user cancels search
-    search: function* (type) {
-      var groups = [],
-        changed = 0;
-      for (let i = 0; i < 9; i++) {
-        groups.push(this.getGroup(type, i))
-      }
-      for (let i = 0; i < groups.length; i++) {
-        let group = groups[i];
-        for (var j = 0; j < DIGITS.length; j++) {
-          let digit = DIGITS[j];
-          if (!group.has(digit)) {
-            var blanks = group.getBlanks(),
-                maybes = [];
-            for (var k = 0; k < blanks.length; k++) {
-              let blank = blanks[k];
-              blank.el.value = digit;
-              if (blank.couldBe(digit)) {
-                blank.highlight('green');
-                maybes.push(blank)
-              }
-              else {
-                blank.highlight('red');
-              }
-              yield(changed);
-              blank.el.value = '';
-              blank.highlight('white');
-            };
-            if (maybes.length === 0) {
-              throw new Error(type + ' search failed: This puzzle appears to be unsolvable.')
-            }
-            else if (maybes.length === 1) {
-              maybes[0].is(digit, type);
-              changed ++;
-            }
-            else if (type === 'box' && this.config.linecheck) {
-              if (maybes.length === 2 || maybes.length === 3) {
-                yield* this.linecheck(maybes, digit);
-              }
-            }
-            yield(changed);
-            maybes.all('highlight', 'white');
-          }
-        }
-      }
-      return changed;
-    },
-
-    // If box search determines a digit can only be in 2 or 3 cells, this method
-    // checks if those cells are in the same row or column and updates the rest
-    // of the row or column accordingly
-    linecheck: function* (maybes, digit) {
-      // Check that all cells are on the same row or column
-      var group = maybes.areSameGroup();
-      if (group) {
-        maybes.all('highlight', 'green');
-        yield;
-        let others = maybes[0]
-          .getRemaining(group)
-          .getBlanks()
-          .removeCells(maybes);
-
-        for (let i = 0; i < others.length; i++) {
-          let other = others[i];
-
-          other.highlight('pink');
-          other.cantBe(digit);
-          yield;
-          if (other.canOnlyBe()) {
-            other.is(other.canOnlyBe(), 'line');
-            yield(1);
-          }
-          other.highlight('white')
-        }
-      }
-      maybes.all('highlight', 'white');
-    },
-
-    // Called every time a value is found. If current step is less than history
-    // length, it deletes the remaining history and adds from that point.
-    savestep: function () {
-      if (this.history.current < this.history.length - 1) {
-        this.history.length = this.history.current + 1
-      }
-      this.history.push(Sudoku.save());
-      this.history.current = this.history.length - 1;
-      return this.history.current
-    },
-
-    // Arrow key event handler, lots of room for out by 1 hell but works ok
-    step: function (direction) {
-      var current = this.history.current;
-      switch (direction) {
-        case 'back':
-          if (current > 0) {
-            this.history.current = current -1;
-            this.load('history', this.history.current);
-          }
-          break;
-        case 'forward':
-          if (current < this.history.length - 1) {
-            this.history.current = current + 1;
-            this.load('history', this.history.current);
-          }
-          break;
-      }
-    },
-
-    clear: function () {
-      if (this._timer) this._stop = true;
-      this.cells.forEach(function (cell) {
-        cell.value = '';
-				cell.el.value = '';
-        cell.maybes = new Set(DIGITS);
-        cell.el.style.color = 'black';
-        cell.highlight('white');
-      })
-    },
-
-    // Saves current state under name if provided or returns state as JSON for use by savestep()
-    save: function (name) {
-      // Remove el property before storing as causes circular structure error
-      var cells = this.cells.map( (cell) => {
-        var save = {};
-        save.value = cell.value;
-        save.maybes = [...cell.maybes];
-        save.updated = cell.updated;
-        save.color = cell.el.style.color;
-        return save;
-      });
-      if (name) {
-        try { localStorage.setItem(name, JSON.stringify(cells)) } catch (e) {}
-      }
-      else return JSON.stringify(cells)
-    },
-
-    // If store is 'history', i.e. when called by step(), load JSON from history array
-    // Otherwise load from localstorage and reset history array
-    load: function (store, step) {
-      this.clear();
-      var cells;
-      // If loading step from history store will be history array
-      if (store === 'history') {
-        cells = JSON.parse(this.history[step])
-      }
-      else {
-        try { cells = JSON.parse(localStorage.getItem(store)) } catch (e) {}
-        if (!cells) return;
-      }
-      for (var i = 0; i < cells.length; i++) {
-        for (var prop in cells[i]) {
-          this.cells[i][prop] = cells[i][prop];
-        }
-        this.cells[i].maybes = new Set(this.cells[i].maybes);
-				this.cells[i].el.value = this.cells[i].value;
-        this.cells[i].el.style.color = cells[i].color;
-      }
-      // If loaded from storage reset history and save first step
-      if (store !== 'history') {
-        Sudoku.history = [];
-        Sudoku.savestep()
-      }
-    }
-  };
-
-  // Event listeners
-  const $ = id => document.getElementById(id);
-
-  $('clear').addEventListener('click', () => {
-    Sudoku.clear()
-  });
-
-  $('save').addEventListener('click', () => {
-    Sudoku.save('puzzle');
-    toast('Saved - Load will bring you back to this point');
-  });
-
-  $('load').addEventListener('click', () => {
-    Sudoku.load('puzzle');
-if (!Sudoku.history.length) Sudoku.savestep();
-
-if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
-}
-  });
-
-  document.querySelectorAll('.visual').forEach(btn => btn.addEventListener('click', (e) => {
-    document.querySelectorAll('.visual').forEach(el => el.classList.remove('active'));
-    e.currentTarget.classList.add('active');
-    Sudoku.config.visuals = Number(e.currentTarget.dataset.speed);
-  }));
-
-  $('backStep').addEventListener('click', () => {
-    Sudoku.step('back')
-  });
-
-  $('forwardStep').addEventListener('click', () => {
-    Sudoku.step('forward')
-  });
-
-  // Not Check / Line Check / Tree Search toggles
-  document.querySelectorAll('.check').forEach(btn => btn.addEventListener('click', (e) => {
-    const el = e.currentTarget;
-    const on = !Sudoku.config[el.id];
-    Sudoku.config[el.id] = on;
-    el.classList.toggle('active', on);
-    el.setAttribute('aria-pressed', on);
-  }));
-
-  // On-screen keypad
-  const keypad = $('keypad');
-  keypad.addEventListener('pointerdown', e => e.preventDefault()); // keep cell focus
-  keypad.addEventListener('click', (e) => {
-    const btn = e.target.closest('button');
-    if (!btn) return;
-    if (!Sudoku.selected) {
-      toast('Tap a cell first');
-      return;
-    }
-    if (btn.dataset.digit) Sudoku.selected.enter(btn.dataset.digit);
-    else Sudoku.selected.erase();
-  });
-
-  const solveButtons = document.querySelectorAll('.solve');
-  solveButtons.forEach(btn => btn.addEventListener('click', (e) => {
-    const target = e.currentTarget;
-    const name = target.textContent.trim();
-    // Check Sudoku is not currently scanning
-    if (Sudoku._timer) {
-      Sudoku._stop = true;
-      return;
-    }
-    console.time(name);
-    solveButtons.forEach(b => { b.disabled = true });
-    target.disabled = false;
-    target.classList.add('running');
-    const done = () => {
-      console.timeEnd(name);
-      solveButtons.forEach(b => { b.disabled = false });
-      target.classList.remove('running');
+  // Arrow keys move, 1-9 enter, backspace / delete / 0 / space clear
+  onKey(i, event) {
+    const moves = {
+      ArrowLeft: i > 0 ? i - 1 : -1,
+      ArrowRight: i < 80 ? i + 1 : -1,
+      ArrowUp: i >= 9 ? i - 9 : -1,
+      ArrowDown: i < 72 ? i + 9 : -1,
     };
-    const run = (method, arg) => Sudoku.run(method, false, arg);
-    const choice = {
-      notsearch: () => run(Sudoku.update),
-      boxsearch: () => run(Sudoku.search, 'box'),
-      colsearch: () => run(Sudoku.search, 'x'),
-      rowsearch: () => run(Sudoku.search, 'y'),
-      solve: () => Sudoku.solve(),
-    }[target.id];
-    choice()
-      .then(done)
-      .catch(err => {
-        done();
-        toast(err && err.message ? err.message : String(err));
+    if (event.key === 'Tab') return;
+    event.preventDefault();
+    if (event.key in moves) {
+      if (moves[event.key] >= 0) this.select(moves[event.key]);
+    }
+    else if (['Delete', 'Backspace', '0', ' '].includes(event.key)) this.setValue(i, 0);
+    else if (/^[1-9]$/.test(event.key)) this.setValue(i, Number(event.key));
+  },
+
+  // Entering a digit keeps pencil marks. Changing or deleting one rebuilds
+  // the maybes from the digits on the grid.
+  setValue(i, d) {
+    if (this.running) {
+      toast('Stop the search first (tap it again)');
+      return;
+    }
+    const current = this.grid.values[i];
+    if (d === current) return;
+    let next = this.grid.clone();
+    if (current) {
+      const values = Array.from(this.grid.values);
+      values[i] = 0;
+      next = Grid.fromValues(values);
+    }
+    if (d) {
+      if (!next.couldBe(i, d)) {
+        this.nope(i, `${d} can't go there - it's already in this row, column or box`);
+        return;
+      }
+      try {
+        next.place(i, d);
+      }
+      catch (e) {
+        if (!(e instanceof Contradiction)) throw e;
+        this.nope(i, `${d} can't go there: ${e.message}`);
+        return;
+      }
+    }
+    this.grid = next;
+    this.colors[i] = '';
+    this.renderAll();
+    this.savestep();
+  },
+
+  // The digits you entered (not the solver's): what Grade rates
+  givens() {
+    return CELLS.map(i => (this.colors[i] ? 0 : this.grid.values[i]));
+  },
+
+  // Running techniques
+
+  // Plays a technique / strategy generator. With visuals on, one event per
+  // tick and the working is logged. On Ultra it runs synchronously and only
+  // the result is shown.
+  // Speed is read every tick so switching to Ultra part way finishes the run.
+  play(iterator) {
+    const run = { stop: false };
+    this.running = run;
+    return new Promise((resolve, reject) => {
+      const finish = (error, value) => {
+        clearTimeout(run.timer);
+        this.running = null;
+        this.clearHighlights();
+        this.renderAll();
+        if (error) reject(error);
+        else resolve(value);
+      };
+      const tick = () => {
+        if (run.stop) return finish(new Error('Stopped'));
+        const speed = this.config.visuals;
+        try {
+          for (;;) {
+            const step = iterator.next();
+            if (step.done) return finish(null, step.value);
+            if (this.show(step.value, speed > 0)) break;
+          }
+        }
+        catch (e) {
+          return finish(e);
+        }
+        run.timer = setTimeout(tick, speed);
+        return null;
+      };
+      tick();
+    });
+  },
+
+  stop() {
+    if (this.running) this.running.stop = true;
+  },
+
+  // Applies an event to the page. Returns true if it's worth pausing on.
+  show(event, visual) {
+    const { grid } = this;
+    if (event.type === 'place') {
+      this.colors[event.cell] = COLORS[event.by];
+      this.savestep();
+    }
+    if (event.type === 'backtrack') {
+      CELLS.forEach(i => { if (!grid.values[i]) this.colors[i] = ''; });
+    }
+    if (!visual) return false;
+
+    this.clearHighlights();
+    switch (event.type) {
+      case 'look':
+        if (event.kind === 'read') {
+          this.highlight(event.cell, 'lightgreen');
+          this.highlight(event.from, 'orange');
+        }
+        else if (event.kind === 'try') {
+          this.highlight(event.cell, event.ok ? 'lightgreen' : 'lightcoral', event.digit);
+        }
+        else if (event.kind === 'strike') {
+          this.highlight(event.cell, 'pink');
+        }
+        else this.highlight(event.cell, 'khaki');
+        return true;
+      case 'place':
+        this.render(event.cell);
+        this.highlight(event.cell, 'lightgreen');
+        this.log(event.reason, COLORS[event.by], TECHNIQUE_NAMES[event.by]);
+        return true;
+      case 'eliminate':
+        event.cells.forEach(i => this.highlight(i, 'pink'));
+        this.log(event.reason, COLORS.line, TECHNIQUE_NAMES.line);
+        return true;
+      case 'guess':
+        this.highlight(event.cell, 'lightgray');
+        this.log(event.reason, COLORS.tree, `Guess, depth ${event.depth}`);
+        return true;
+      case 'backtrack':
+        this.renderAll();
+        this.log(event.reason, 'red', 'Back up');
+        return true;
+      case 'pass':
+        this.log(`Pass ${event.n}`, null, null, 'pass');
+        return false;
+      case 'fallback':
+        this.log(`Stuck - try ${event.name} instead`, '#ddd', 'Borrow');
+        return false;
+      case 'stuck':
+        this.log(`A whole pass found nothing new. Stuck with ${event.blanks} blanks.`, 'red');
+        return false;
+      default:
+        return false;
+    }
+  },
+
+  log(text, color, tag, className) {
+    const list = $('working');
+    const li = document.createElement('li');
+    if (className) li.className = className;
+    li.innerHTML = (tag ? `<span class="tag" style="background:${color}">${esc(tag)}</span> ` : '')
+      + esc(text);
+    list.appendChild(li);
+    while (list.children.length > 1000) list.removeChild(list.firstChild);
+    list.scrollTop = list.scrollHeight;
+  },
+
+  clearLog() {
+    $('working').innerHTML = '';
+  },
+
+  context(options = this.config) {
+    return createContext(this.grid, {
+      options: { notcheck: options.notcheck, linecheck: options.linecheck },
+    });
+  },
+
+  // Runs one of the Solve tab buttons
+  runButton(id, name) {
+    const ctx = this.context();
+    const single = {
+      notsearch: () => notSearch(ctx),
+      boxsearch: () => hiddenSearch(ctx, { unit: 'box' }),
+      colsearch: () => hiddenSearch(ctx, { unit: 'col' }),
+      rowsearch: () => hiddenSearch(ctx, { unit: 'row' }),
+    };
+    if (single[id]) {
+      return this.play(single[id]()).then(found => {
+        this.log(`${name}: ${found ? `${found} found` : 'nothing new'} (${fmt(ctx.stats.looks)} looks)`, null, null, 'result');
       });
-  }));
+    }
+    const strategy = {
+      ...STRATEGIES.find(s => s.id === 'all-rounder'),
+      fallback: false,
+      guess: this.config.treesearch,
+    };
+    return this.play(solveWith(ctx, strategy)).then(solved => {
+      this.log(summary('Solve', solved, ctx.stats), null, null, 'result');
+      if (!solved) throw new Error('Failed to solve. Try enabling Tree Search');
+    });
+  },
 
-  initScanner({
-    onImport: (grid) => {
-      Sudoku.importGrid(grid);
-      toast('Imported ' + grid.filter(Boolean).length + ' digits and saved as your start position');
-    },
+  // Watches a built in approach solve the digits currently on the grid.
+  // Pencil marks start fresh so the effort matches the grade.
+  watch(strategy) {
+    this.grid = Grid.fromValues(this.grid.values);
+    const ctx = createContext(this.grid, { options: strategy.options });
+    this.log(`${strategy.name}: ${strategy.description}`, null, null, 'heading');
+    return this.play(solveWith(ctx, strategy)).then(solved => {
+      this.log(summary(strategy.name, solved, ctx.stats), null, null, 'result');
+    });
+  },
+
+  // History
+
+  snapshot() {
+    return { ...this.grid.snapshot(), colors: this.colors.slice() };
+  },
+
+  restore(snap) {
+    this.grid = new Grid();
+    this.grid.restore(snap);
+    this.colors = snap.colors.slice();
+    this.renderAll();
+  },
+
+  // Called every time a value is found. If we've stepped back, the steps
+  // after this point are replaced.
+  // Only the last MAX_HISTORY steps are kept (Reset goes back to the start of a run)
+  savestep() {
+    this.history.length = this.current + 1;
+    this.history.push(this.snapshot());
+    if (this.history.length > MAX_HISTORY) this.history.shift();
+    this.current = this.history.length - 1;
+  },
+
+  step(direction) {
+    if (this.running) return;
+    const n = this.current + (direction === 'back' ? -1 : 1);
+    if (n < 0 || n >= this.history.length) return;
+    this.current = n;
+    this.restore(this.history[n]);
+  },
+
+  // Saving / loading
+
+  clear() {
+    this.stop();
+    this.grid = new Grid();
+    this.colors.fill('');
+    this.renderAll();
+    this.savestep();
+    clearGrade();
+  },
+
+  // Same format as v1 so old saves still load
+  save(name) {
+    const cells = CELLS.map(i => ({
+      value: this.grid.values[i] ? String(this.grid.values[i]) : '',
+      maybes: this.grid.values[i] ? [String(this.grid.values[i])] : LIST[this.grid.cands[i]].map(String),
+      color: this.colors[i],
+    }));
+    store.set(name, JSON.stringify(cells));
+  },
+
+  load(name) {
+    let cells;
+    let grid;
+    try {
+      cells = JSON.parse(store.get(name));
+      if (!Array.isArray(cells) || cells.length !== 81) return false;
+      grid = Grid.fromValues(cells.map(c => Number(c.value) || 0));
+    }
+    catch (e) {
+      return false;
+    }
+    cells.forEach((c, i) => {
+      if (!c.value && c.maybes) {
+        const mask = c.maybes.reduce((m, d) => m | (1 << (Number(d) - 1)), 0);
+        if (grid.cands[i] & mask) grid.cands[i] &= mask;
+      }
+    });
+    this.stop();
+    this.grid = grid;
+    // v1 saved every cell's colour, including 'black' / '#222' for givens
+    this.colors = cells.map(c => (c.value && Object.values(COLORS).includes(c.color) ? c.color : ''));
+    this.resetHistory();
+    return true;
+  },
+
+  // Loads 81 digits (0 = blank) as a new puzzle
+  loadValues(values) {
+    const grid = Grid.fromValues(values);
+    this.stop();
+    this.grid = grid;
+    this.colors.fill('');
+    this.resetHistory();
+  },
+
+  resetHistory() {
+    this.renderAll();
+    this.history = [];
+    this.current = -1;
+    this.beforeRun = null;
+    this.savestep();
+    clearGrade();
+  },
+};
+
+function summary(name, solved, stats) {
+  const outcome = solved ? 'solved' : 'stuck';
+  const guesses = stats.guesses
+    ? `${stats.guesses} guesses, ${stats.backtracks} dead ends`
+    : 'no guessing';
+  const stuck = stats.stuck ? `, stuck ${stats.stuck} times` : '';
+  return `${name}: ${outcome} in ${stats.passes} passes - ${fmt(stats.looks)} looks, `
+    + `${stats.placed} digits entered${stuck}, ${guesses}`;
+}
+
+// Grade tab
+
+function renderStrategies() {
+  $('strategies').innerHTML = STRATEGIES.map(s => `
+    <div class="strategy">
+      <h3>${esc(s.name)} <button type="button" class="watch" data-id="${s.id}">Watch</button></h3>
+      <p>${esc(s.description)}</p>
+      <ol class="plan">${describePlan(s).map(line => `<li>${esc(line)}</li>`).join('')}</ol>
+    </div>`).join('');
+}
+
+function clearGrade() {
+  $('grade').innerHTML = '';
+}
+
+function renderGrade(result) {
+  const el = $('grade');
+  if (!result.valid) {
+    el.innerHTML = `<p class="verdict">${esc(result.message)}</p>`;
+    return;
+  }
+  const best = result.favoured.looks;
+  const rows = result.results.map(r => `
+    <tr${r.looks === best ? ' class="best"' : ''}>
+      <td>${esc(r.name)}${r.outcome === 'solved' ? '' : ` <em>(${r.outcome})</em>`}</td>
+      <td class="num">${fmt(r.looks)}</td>
+      <td class="num">${r.passes}</td>
+      <td class="num">${r.stuck}</td>
+      <td class="num">${r.guesses}</td>
+    </tr>`).join('');
+  el.innerHTML = `
+    <p class="verdict"><strong>${result.rating}</strong> - effort ${fmt(result.effort)}</p>
+    ${result.needsGuessing ? `<p><strong>Needs guessing:</strong> at some point none of the
+    searches can make progress, so every approach has to resort to trial and error. That makes
+    it at least ${GUESSING_FLOOR}.</p>` : ''}
+    <p>This puzzle favours <strong>${esc(result.favoured.name)}</strong>; the hardest approach
+    took ${result.spread.toFixed(1)}&times; as many looks.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Approach</th><th class="num">Looks</th><th class="num">Passes</th><th class="num">Stuck</th><th class="num">Guesses</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+// Grading runs in a worker so hard puzzles don't freeze the page. Falls back
+// to running here if workers aren't available or the worker fails to load.
+let worker = null;
+let workerBroken = !window.Worker;
+let jobs = 0;
+
+function gradeInPage(values) {
+  return new Promise(resolve => setTimeout(() => resolve(grade(values)), 20));
+}
+
+function gradeAsync(values) {
+  if (workerBroken) return gradeInPage(values);
+  if (!worker) worker = new Worker('grade-worker.js');
+  const current = worker;
+  const id = ++jobs;
+  return new Promise((resolve, reject) => {
+    const done = () => {
+      current.removeEventListener('message', onMessage);
+      current.removeEventListener('error', onError);
+    };
+    function onMessage({ data }) {
+      if (data.id !== id) return;
+      done();
+      if (data.error) reject(new Error(data.error));
+      else resolve(data.result);
+    }
+    function onError() {
+      done();
+      workerBroken = true;
+      worker = null;
+      resolve(gradeInPage(values));
+    }
+    current.addEventListener('message', onMessage);
+    current.addEventListener('error', onError);
+    current.postMessage({ id, values });
   });
+}
 
-  return Sudoku
-})();
+// Event listeners
+
+const runButtons = () => document.querySelectorAll('.solve, .watch');
+
+// Disables the other run buttons while one is going. Tapping the active
+// one again stops it.
+function running(button, promise) {
+  runButtons().forEach(b => { b.disabled = b !== button; });
+  button.classList.add('running');
+  const done = () => {
+    runButtons().forEach(b => { b.disabled = false; });
+    button.classList.remove('running');
+  };
+  promise.then(done, e => {
+    done();
+    toast(e instanceof GaveUp || e instanceof Contradiction || e.message === 'Stopped'
+      ? e.message
+      : `Error: ${e.message}`);
+    if (e instanceof Contradiction) Sudoku.log(`This puzzle appears to be unsolvable: ${e.message}`, 'red');
+  });
+}
+
+function start(button, fn) {
+  if (Sudoku.running) {
+    Sudoku.stop();
+    return;
+  }
+  Sudoku.beforeRun = Sudoku.snapshot();
+  running(button, fn());
+}
+
+$('clear').addEventListener('click', () => Sudoku.clear());
+
+$('save').addEventListener('click', () => {
+  Sudoku.save('puzzle');
+  toast('Saved - Load will bring you back to this point');
+});
+
+$('load').addEventListener('click', () => {
+  if (!Sudoku.load('puzzle')) toast('Nothing saved yet');
+});
+
+$('reset').addEventListener('click', () => {
+  if (Sudoku.beforeRun && !Sudoku.running) {
+    Sudoku.restore(Sudoku.beforeRun);
+    Sudoku.savestep();
+  }
+});
+
+document.querySelectorAll('.visual').forEach(btn => btn.addEventListener('click', e => {
+  document.querySelectorAll('.visual').forEach(el => el.classList.remove('active'));
+  e.currentTarget.classList.add('active');
+  Sudoku.config.visuals = Number(e.currentTarget.dataset.speed);
+}));
+
+$('backStep').addEventListener('click', () => Sudoku.step('back'));
+$('forwardStep').addEventListener('click', () => Sudoku.step('forward'));
+
+// Not Check / Line Check / Tree Search toggles
+document.querySelectorAll('.check').forEach(btn => btn.addEventListener('click', e => {
+  const el = e.currentTarget;
+  const on = !Sudoku.config[el.id];
+  Sudoku.config[el.id] = on;
+  el.classList.toggle('active', on);
+  el.setAttribute('aria-pressed', on);
+}));
+
+// On-screen keypad
+const keypad = $('keypad');
+keypad.addEventListener('pointerdown', e => e.preventDefault()); // keep cell focus
+keypad.addEventListener('click', e => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  if (Sudoku.selected < 0) {
+    toast('Tap a cell first');
+    return;
+  }
+  Sudoku.setValue(Sudoku.selected, Number(btn.dataset.digit) || 0);
+});
+
+document.querySelectorAll('.solve').forEach(btn => btn.addEventListener('click', e => {
+  const target = e.currentTarget;
+  start(target, () => Sudoku.runButton(target.id, target.textContent.trim()));
+}));
+
+$('strategies').addEventListener('click', e => {
+  const btn = e.target.closest('.watch');
+  if (!btn) return;
+  const strategy = STRATEGIES.find(s => s.id === btn.dataset.id);
+  start(btn, () => Sudoku.watch(strategy));
+});
+
+$('grade-btn').addEventListener('click', e => {
+  const button = e.currentTarget;
+  button.disabled = true;
+  $('grade').innerHTML = '<p class="verdict">Grading&hellip;</p>';
+  gradeAsync(Sudoku.givens())
+    .then(renderGrade, err => {
+      $('grade').innerHTML = `<p class="verdict">${esc(err.message)}</p>`;
+    })
+    .then(() => { button.disabled = false; });
+});
+
+$('clear-log').addEventListener('click', () => Sudoku.clearLog());
+
+// Tabs under the grid
+const tabs = document.querySelectorAll('[role="tab"]');
+function showTab(id) {
+  tabs.forEach(tab => {
+    const on = tab.id === id;
+    tab.setAttribute('aria-selected', on);
+    tab.tabIndex = on ? 0 : -1;
+    $(tab.getAttribute('aria-controls')).hidden = !on;
+  });
+  store.set('tab', id);
+}
+tabs.forEach(tab => tab.addEventListener('click', () => showTab(tab.id)));
+$('tabs').addEventListener('keydown', e => {
+  const list = [...tabs];
+  const n = list.indexOf(document.activeElement);
+  const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+  if (n < 0 || !step) return;
+  const next = list[(n + step + list.length) % list.length];
+  showTab(next.id);
+  next.focus();
+});
+const savedTab = store.get('tab');
+if (savedTab && $(savedTab) && $(savedTab).getAttribute('role') === 'tab') showTab(savedTab);
+
+// Examples and puzzle text
+$('examples').innerHTML = '<option value="">Examples&hellip;</option>'
+  + PUZZLES.map((p, n) => `<option value="${n}">${esc(p.name)}</option>`).join('');
+$('examples').addEventListener('change', e => {
+  if (e.target.value === '') return;
+  Sudoku.loadValues(parseValues(PUZZLES[e.target.value].puzzle));
+  e.target.value = '';
+});
+
+$('import').addEventListener('click', () => {
+  try {
+    Sudoku.loadValues(parseValues($('puzzle-text').value));
+  }
+  catch (e) {
+    toast(e.message);
+  }
+});
+
+$('export').addEventListener('click', () => {
+  $('puzzle-text').value = Sudoku.grid.toString();
+});
+
+initScanner({
+  onImport: grid => {
+    try {
+      Sudoku.loadValues(grid);
+    }
+    catch (e) {
+      if (!(e instanceof Contradiction)) throw e;
+      toast(`Couldn't import: ${e.message}`);
+      return;
+    }
+    Sudoku.save('puzzle');
+    toast(`Imported ${grid.filter(Boolean).length} digits and saved as your start position`);
+  },
+});
 
 Sudoku.init();
-let hasPuzzle = false;
-try { hasPuzzle = !!localStorage.getItem('puzzle') } catch (e) {}
-if (!hasPuzzle) {
-  try { localStorage.setItem('puzzle', '[{"value":"","maybes":["1","2","3","7","8"],"updated":true},{"value":"","maybes":["1","3","8","9"],"updated":true},{"value":"","maybes":["7","8","9"],"updated":true},{"value":"","maybes":["1","3","6","7","9"],"updated":true},{"value":"","maybes":["1","3","6","7","9"],"updated":true},{"value":"","maybes":["3","6","7"],"updated":true},{"value":"4","maybes":["3","4","6","8"],"updated":true},{"value":"5","maybes":["2","3","5","6"],"updated":true},{"value":"","maybes":["2","3","6","8"],"updated":true},{"value":"","maybes":["2","3","5","8"],"updated":true},{"value":"","maybes":["3","4","5","8","9"],"updated":true},{"value":"6","maybes":["4","5","6","8","9"],"updated":true},{"value":"","maybes":["3","9"],"updated":true},{"value":"","maybes":["3","4","9"],"updated":true},{"value":"","maybes":["3","4"],"updated":true},{"value":"","maybes":["3","8"],"updated":true},{"value":"7","maybes":["2","3","7"],"updated":true},{"value":"1","maybes":["1","2","3","8"],"updated":true},{"value":"","maybes":["1","3","7"],"updated":true},{"value":"","maybes":["1","3","4"],"updated":true},{"value":"","maybes":["4","7"],"updated":true},{"value":"5","maybes":["1","3","5","6","7"],"updated":true},{"value":"2","maybes":["1","2","3","4","6","7"],"updated":true},{"value":"8","maybes":["3","4","6","7","8"],"updated":true},{"value":"","maybes":["3","6"],"updated":true},{"value":"","maybes":["3","6"],"updated":true},{"value":"9","maybes":["3","6","9"],"updated":true},{"value":"","maybes":["1","5"],"updated":true},{"value":"","maybes":["1","4","5"],"updated":true},{"value":"2","maybes":["2","4","5"],"updated":true},{"value":"","maybes":["1","3","6","7"],"updated":true},{"value":"","maybes":["1","3","4","5","6","7"],"updated":true},{"value":"9","maybes":["3","4","5","6","7","9"],"updated":true},{"value":"","maybes":["3","6"],"updated":true},{"value":"8","maybes":["1","3","4","6","8"],"updated":true},{"value":"","maybes":["3","4","6"],"updated":true},{"value":"6","maybes":["1","6","8"],"updated":true},{"value":"","maybes":["1","4","8","9"],"updated":true},{"value":"3","maybes":["3","4","8","9"],"updated":true},{"value":"","maybes":["1","2"],"updated":true},{"value":"","maybes":["1","4"],"updated":true},{"value":"","maybes":["2","4"],"updated":true},{"value":"7","maybes":["7","9"],"updated":true},{"value":"","maybes":["1","4","9"],"updated":true},{"value":"5","maybes":["4","5"],"updated":true},{"value":"","maybes":["1","5"],"updated":true},{"value":"7","maybes":["1","4","5","7","9"],"updated":true},{"value":"","maybes":["4","5","9"],"updated":true},{"value":"8","maybes":["1","3","6","8"],"updated":true},{"value":"","maybes":["1","3","4","5","6"],"updated":true},{"value":"","maybes":["3","4","5","6"],"updated":true},{"value":"2","maybes":["2","3","6","9"],"updated":true},{"value":"","maybes":["1","3","4","6","9"],"updated":true},{"value":"","maybes":["3","4","6"],"updated":true},{"value":"9","maybes":["3","5","7","9"],"updated":true},{"value":"","maybes":["3","5"],"updated":true},{"value":"","maybes":["5","7"],"updated":true},{"value":"4","maybes":["2","3","4","6","7"],"updated":true},{"value":"8","maybes":["3","5","6","7","8"],"updated":true},{"value":"1","maybes":["1","2","3","5","6","7"],"updated":true},{"value":"","maybes":["3","5","6"],"updated":true},{"value":"","maybes":["2","3","6"],"updated":true},{"value":"","maybes":["2","3","6","7"],"updated":true},{"value":"4","maybes":["3","4","5","7","8"],"updated":true},{"value":"2","maybes":["2","3","5","8"],"updated":true},{"value":"","maybes":["5","7","8"],"updated":true},{"value":"","maybes":["3","6","7","9"],"updated":true},{"value":"","maybes":["3","5","6","7","9"],"updated":true},{"value":"","maybes":["3","5","6","7"],"updated":true},{"value":"1","maybes":["1","3","5","6","8","9"],"updated":true},{"value":"","maybes":["3","6","9"],"updated":true},{"value":"","maybes":["3","6","7","8"],"updated":true},{"value":"","maybes":["3","5","7","8"],"updated":true},{"value":"6","maybes":["3","5","6","8"],"updated":true},{"value":"1","maybes":["1","5","7","8"],"updated":true},{"value":"","maybes":["2","3","7","9"],"updated":true},{"value":"","maybes":["3","5","7","9"],"updated":true},{"value":"","maybes":["2","3","5","7"],"updated":true},{"value":"","maybes":["3","5","8","9"],"updated":true},{"value":"","maybes":["2","3","4","9"],"updated":true},{"value":"","maybes":["2","3","4","7","8"],"updated":true}]') } catch (e) {}
+renderStrategies();
+if (!Sudoku.load('puzzle')) {
+  Sudoku.loadValues(parseValues(PUZZLES[1].puzzle));
+  Sudoku.save('puzzle');
 }
-Sudoku.load('puzzle');
-if (!Sudoku.history.length) Sudoku.savestep();
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));

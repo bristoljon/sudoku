@@ -1,13 +1,14 @@
 {
   "name": "sudoku",
-  "version": "1.0.0",
-  "description": "Sudoku solver with algorithm visualisation, installable as a PWA, with camera scan-to-import",
+  "version": "2.0.0",
+  "description": "Sudoku solver and difficulty grader with algorithm visualisation, installable as a PWA, with camera scan-to-import",
   "main": "script.js",
   "scripts": {
-    "build": "esbuild script.js --bundle --minify --target=es2018 --outfile=main.js",
+    "build": "esbuild script.js --bundle --minify --target=es2018 --outfile=main.js && esbuild src/grade-worker.js --bundle --minify --target=es2018 --outfile=grade-worker.js",
     "watch": "esbuild script.js --bundle --target=es2018 --outfile=main.js --sourcemap --watch",
     "serve": "npx http-server -c-1 .",
-    "build:site": "npm run build && rm -rf dist && mkdir -p dist/icons && cp index.html main.js sw.js manifest.webmanifest dist/ && cp icons/*.png dist/icons/"
+    "test": "node --test test/",
+    "build:site": "npm run build && rm -rf dist && mkdir -p dist/icons && cp index.html main.js grade-worker.js sw.js manifest.webmanifest dist/ && cp icons/*.png dist/icons/"
   },
   "repository": {
     "type": "git",

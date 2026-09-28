@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Sudoku Cracker</title>
-  <meta name="description" content="Sudoku solver with step-by-step algorithm visualisation. Scan a puzzle with your camera to import it.">
+  <meta name="description" content="Sudoku solver and difficulty grader with step-by-step algorithm visualisation. Scan a puzzle with your camera to import it.">
   <meta name="theme-color" content="#1f2a44">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png" type="image/png">
@@ -121,8 +121,53 @@
     .history { display: flex; justify-content: center; gap: 10px; }
     .history button { min-width: 64px; font-size: 18px; }
 
+    .history #reset { font-size: 15px; }
+
+    select {
+      font: inherit; font-weight: 600; border: 0; border-radius: 8px; min-height: 40px;
+      padding: 0 8px; background: #dde2ea; color: var(--ink); min-width: 0; max-width: 130px;
+    }
+
+    /* Solve / Grade tabs */
+    .tabs { display: flex; gap: 4px; margin-bottom: 10px; background: #dde2ea; border-radius: var(--radius); padding: 4px; }
+    .tabs [role="tab"] { flex: 1; background: transparent; min-height: 38px; }
+    .tabs [role="tab"][aria-selected="true"] { background: var(--card); box-shadow: 0 1px 2px rgba(0,0,0,.15); }
+
+    .panel .intro { color: var(--muted); font-size: 14px; margin-bottom: 8px; }
+    .wide { width: 100%; }
+    .small { min-height: 28px; padding: 3px 10px; font-size: 12px; }
+    .panel h2.with-action { display: flex; justify-content: space-between; align-items: center; }
+    .panel h2 .small { text-transform: none; letter-spacing: 0; }
+
+    #grade .verdict { font-size: 17px; text-align: center; margin: 10px 0 6px; }
+    #grade p { margin-bottom: 6px; font-size: 14px; }
+    .scroll { overflow-x: auto; }
+    #grade table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+    #grade th, #grade td { padding: 5px 4px; border-bottom: 1px solid #e3e6ec; text-align: left; white-space: nowrap; }
+    #grade th { color: var(--muted); font-weight: 600; }
+    #grade .num { text-align: right; }
+    #grade tr.best { background: #eaf7e1; }
+
+    .strategy { border-top: 1px solid #e3e6ec; padding: 10px 0 4px; }
+    .strategy h3 { font-size: 15px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .strategy .watch { min-height: 32px; padding: 4px 12px; }
+    .watch.running { background: var(--ink); color: #fff; }
+    .watch.running::after { content: " - stop"; }
+    .strategy p, .strategy .plan { font-size: 13px; margin: 4px 0; }
+    .strategy .plan { color: var(--muted); padding-left: 22px; }
+
+    #working { max-height: 260px; overflow-y: auto; list-style: none; font-size: 13px; }
+    #working:empty::before { content: "Run a search or watch an approach to see its working here."; color: var(--muted); }
+    #working li { padding: 2px 0; }
+    #working li.pass { color: #999; border-top: 1px solid #eee; }
+    #working li.heading, #working li.result { font-weight: 600; padding: 6px 0; }
+    #working .tag { display: inline-block; padding: 0 5px; border-radius: 3px; color: #111; font-size: 11px; font-weight: 700; }
+
+    #puzzle-text { width: 100%; font: 12px ui-monospace, Menlo, monospace; padding: 8px; margin: 8px 0; border: 1px solid var(--thin); border-radius: 8px; }
+
     details.panel summary { font-weight: 700; cursor: pointer; }
     details.panel p, details.panel li { margin-top: 8px; }
+    details.panel h3 { font-size: 15px; margin-top: 14px; }
     details.panel ul { padding-left: 18px; }
 
     #toast {
@@ -178,6 +223,7 @@
         <button id="clear" type="button">Clear</button>
         <button id="save" type="button">Save</button>
         <button id="load" type="button">Load</button>
+        <select id="examples" aria-label="Load an example puzzle"></select>
       </div>
       <div class="seg" role="group" aria-label="Visualisation speed">
         <button type="button" class="visual" data-speed="250">Slow</button>
@@ -213,52 +259,95 @@
       <button type="button" class="erase" aria-label="Erase">⌫</button>
     </div>
 
-    <section class="panel">
-      <h2>Solve</h2>
-      <div class="row">
-        <button type="button" class="solve" id="notsearch">Not Search</button>
-        <button type="button" class="solve" id="boxsearch">Box Search</button>
-        <button type="button" class="solve" id="colsearch">Column Search</button>
-        <button type="button" class="solve" id="rowsearch">Row Search</button>
-        <button type="button" class="solve" id="solve">Solve</button>
-      </div>
-    </section>
+    <div class="tabs" id="tabs" role="tablist" aria-label="Mode">
+      <button type="button" role="tab" id="tab-solve" aria-controls="panel-solve" aria-selected="true">Solve</button>
+      <button type="button" role="tab" id="tab-grade" aria-controls="panel-grade" aria-selected="false" tabindex="-1">Grade</button>
+    </div>
 
-    <section class="panel">
-      <h2>Extra checks</h2>
-      <div class="row">
-        <button type="button" class="check" id="notcheck" aria-pressed="false">Not Check</button>
-        <button type="button" class="check" id="linecheck" aria-pressed="false">Line Check</button>
-        <button type="button" class="check" id="treesearch" aria-pressed="false">Tree Search</button>
-      </div>
-    </section>
+    <div id="panel-solve" role="tabpanel" aria-labelledby="tab-solve">
+      <section class="panel">
+        <h2>Search</h2>
+        <div class="row">
+          <button type="button" class="solve" id="notsearch">Not Search</button>
+          <button type="button" class="solve" id="boxsearch">Box Search</button>
+          <button type="button" class="solve" id="colsearch">Column Search</button>
+          <button type="button" class="solve" id="rowsearch">Row Search</button>
+          <button type="button" class="solve" id="solve">Solve</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Extra checks</h2>
+        <div class="row">
+          <button type="button" class="check" id="notcheck" aria-pressed="false">Not Check</button>
+          <button type="button" class="check" id="linecheck" aria-pressed="false">Line Check</button>
+          <button type="button" class="check" id="treesearch" aria-pressed="false">Tree Search</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="panel-grade" role="tabpanel" aria-labelledby="tab-grade" hidden>
+      <section class="panel">
+        <h2>Difficulty</h2>
+        <p class="intro">Solves the puzzle's starting digits (the black ones) with each approach below and rates it by how much looking they needed.</p>
+        <button type="button" class="primary wide" id="grade-btn">Grade puzzle</button>
+        <div id="grade"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Approaches</h2>
+        <p class="intro">Ways a person might tackle a puzzle, written in words and translated into the search buttons. Watch one solve the puzzle.</p>
+        <div id="strategies"></div>
+      </section>
+    </div>
 
     <section class="panel">
       <h2>Step through</h2>
       <div class="history">
         <button id="backStep" type="button" aria-label="Step back">‹</button>
+        <button id="reset" type="button" title="Go back to before the last search">Reset</button>
         <button id="forwardStep" type="button" aria-label="Step forward">›</button>
       </div>
     </section>
 
+    <section class="panel">
+      <h2 class="with-action">Working <button type="button" id="clear-log" class="small">Clear</button></h2>
+      <ol id="working"></ol>
+    </section>
+
+    <details class="panel" id="puzzle-io">
+      <summary>Puzzle as text</summary>
+      <p>81 digits in reading order, with 0 or . for blanks.</p>
+      <input type="text" id="puzzle-text" placeholder="81 digits, . or 0 for blanks" autocomplete="off" spellcheck="false">
+      <div class="row">
+        <button id="import" type="button">Import</button>
+        <button id="export" type="button">Export</button>
+      </div>
+    </details>
+
     <details class="panel" id="instructions">
       <summary>How it works</summary>
       <p><strong>Scan</strong> a puzzle from a newspaper, book or screenshot: take or choose a photo, check the digits it read (unsure ones are orange - tap to fix), then Import. If it misses the grid, use <em>Adjust corners</em>.</p>
-      <p>Or enter digits yourself: tap a cell, then a number. On a keyboard you can type digits and use the arrow keys.</p>
+      <p>Or enter digits yourself: tap a cell, then a number. On a keyboard you can type digits and use the arrow keys. Or pick one of the Examples.</p>
       <p>The line under the grid shows the digits the selected cell could be. This updates automatically whenever a cell changes.</p>
       <p>Use 'Save' to store the current puzzle state so you can return to the beginning if you want.</p>
-      <p>Use a combination of different search methods to solve the puzzle. You should <strong>wait till one search has finished before doing the next</strong>. Although it will let you trigger multiple searches at once and it looks cool, it will probably fail to solve..</p>
+      <h3>Solve</h3>
+      <p>Use a combination of different search methods to solve the puzzle. While one search is running the others are disabled; tap it again to stop it. Digits are coloured by the method that found them.</p>
       <ul>
-        <li><strong>Not Search</strong> - For every blank that has changed state, remove all the digits in that cell's row, column and box from its 'maybes' list. If only one remains, enter it.</li>
+        <li><strong>Not Search</strong> - For every blank, read across its row, column and box and remove every digit found from its 'maybes' list. If only one remains, enter it.</li>
         <li><strong>Not Check</strong> - Additional method that checks all the affected cells whenever a value is entered to see if they can now be only one thing. Basically makes 'Not Search' redundant.</li>
-        <li><strong>Box Search</strong> - For each box, create list of cells where each digit could go. If only one place, enter it. If only 2 places, and they are on the same row or column, update the rest of the group's maybes lists</li>
+        <li><strong>Box Search</strong> - For each box, create list of cells where each digit could go. If only one place, enter it.</li>
         <li><strong>Line Check</strong> - Additional check after box search, if digit can only be in 2 or 3 cells on the same row or column, then it can't be anywhere else on that line</li>
         <li><strong>Column Search</strong> - For each column, create list of cells where each digit could go. If only one place, enter it.</li>
         <li><strong>Row Search</strong> - For each row, create list of cells where each digit could go. If only one place, enter it.</li>
-        <li><strong>Solve</strong> - Not, Box, Column and Row search until no blanks remain or maximum iterations reached.</li>
-        <li><strong>Tree Search</strong> - Triggered if 'Solve' fails, finds a cell that can only be one of 2 digits and attempts to solve each scenario</li>
+        <li><strong>Solve</strong> - Not, Box, Column and Row search, each repeated while it finds anything, until solved or stuck. This is the 'All-rounder' approach on the Grade tab.</li>
+        <li><strong>Tree Search</strong> - Used by 'Solve' when it gets stuck: picks the blank with the fewest options, tries one and carries on. If that leads to a contradiction it backs up and rules that digit out.</li>
       </ul>
-      <p>Use ‹ and › to step backwards and forwards digit by digit. Tap a running search to stop it.</p>
+      <p>Use ‹ and › to step backwards and forwards digit by digit, or Reset to go back to before the last search. On Slow or Fast the Working panel explains each digit as it is found; on Ultra only the result is shown. You can switch speed part way through.</p>
+      <h3>Grade</h3>
+      <p>Every approach counts its <strong>looks</strong>: reading a square, checking whether a digit fits, or rubbing out a pencil mark. When an approach gets stuck it borrows the other searches, easiest first, and goes back to its own way as soon as one finds something. Only when none of them can make progress does it guess (Tree Search), and all the work spent on wrong guesses counts too.</p>
+      <p>Guessing is hard for people, so a puzzle that can't be solved without it is rated at least Tough whatever its effort.</p>
+      <p>The puzzle's difficulty is the geometric mean of the looks each approach needed. Some puzzles suit one approach far better than another; the approach that needed fewest looks is the one the puzzle favours. 'Stuck' counts how often an approach ran dry and had to borrow another search.</p>
     </details>
   </main>
 
