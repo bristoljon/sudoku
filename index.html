@@ -60,6 +60,15 @@
     .primary { background: var(--accent); color: #fff; }
     .scan-btn { display: inline-flex; align-items: center; gap: 6px; background: #fff; color: var(--brand); }
     .scan-btn svg { width: 20px; height: 20px; }
+    .scan-wrap { position: relative; }
+    .menu {
+      position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; min-width: 170px;
+      background: var(--card); border-radius: var(--radius); padding: 4px;
+      box-shadow: 0 6px 24px rgba(0,0,0,.25); display: flex; flex-direction: column;
+    }
+    .menu[hidden] { display: none; }
+    .menu button { background: transparent; text-align: left; min-height: 44px; }
+    .menu button:active { background: #dde2ea; }
 
     .toolbar { display: flex; flex-wrap: wrap; gap: 6px; justify-content: space-between; margin-bottom: 10px; }
     .toolbar .group { display: flex; gap: 6px; }
@@ -212,10 +221,16 @@
   <main>
     <header class="top">
       <h1>Sudoku Cracker</h1>
-      <button id="scanBtn" class="scan-btn" type="button">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a2 2 0 0 1 2-2h2l2-2h6l2 2h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="4"/></svg>
-        Scan
-      </button>
+      <div class="scan-wrap">
+        <button id="scanBtn" class="scan-btn" type="button" aria-haspopup="menu" aria-expanded="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a2 2 0 0 1 2-2h2l2-2h6l2 2h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="4"/></svg>
+          Scan
+        </button>
+        <div id="scanMenu" class="menu" role="menu" hidden>
+          <button type="button" role="menuitem" id="scanTake">Take photo</button>
+          <button type="button" role="menuitem" id="scanChoose">Choose photo</button>
+        </div>
+      </div>
     </header>
 
     <div class="toolbar">
@@ -351,6 +366,8 @@
     </details>
   </main>
 
+  <!-- Android's photo picker has no camera option, so taking a photo needs its own input -->
+  <input type="file" id="scanCamera" accept="image/*" capture="environment" hidden>
   <input type="file" id="scanFile" accept="image/*" hidden>
 
   <div id="scanner" class="sheet" hidden tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="scanTitle" data-mode="review">

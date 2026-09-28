@@ -8,7 +8,10 @@ const MAX_SIDE = 1200; // photos are scaled down to this before processing
 export function initScanner({ onImport }) {
   const $ = id => document.getElementById(id);
   const sheet = $('scanner');
-  const file = $('scanFile');
+  const camera = $('scanCamera');
+  const gallery = $('scanFile');
+  const menu = $('scanMenu');
+  const scanBtn = $('scanBtn');
   const canvas = $('scanCanvas');
   const ctx = canvas.getContext('2d');
   const busy = $('scanBusy');
@@ -28,8 +31,40 @@ export function initScanner({ onImport }) {
   let drag = -1;
   let warpedImg = null; // canvas holding the straightened photo
 
-  $('scanBtn').addEventListener('click', () => file.click());
-  btnRetake.addEventListener('click', () => file.click());
+  // On phones / tablets offer the camera or the photo library (Android's
+  // picker for a plain file input doesn't include the camera). Elsewhere
+  // there's no camera to take one with, so go straight to picking a file.
+  const canTakePhoto = matchMedia('(pointer: coarse)').matches;
+  let source = gallery; // what Retake reopens
+
+  function pick(input) {
+    source = input;
+    showMenu(false);
+    input.click();
+  }
+
+  function showMenu(show) {
+    menu.hidden = !show;
+    scanBtn.setAttribute('aria-expanded', show);
+    if (show) $('scanTake').focus();
+  }
+
+  scanBtn.addEventListener('click', () => {
+    if (!canTakePhoto) pick(gallery);
+    else showMenu(menu.hidden);
+  });
+  $('scanTake').addEventListener('click', () => pick(camera));
+  $('scanChoose').addEventListener('click', () => pick(gallery));
+  document.addEventListener('click', (e) => {
+    if (!menu.hidden && !e.target.closest('.scan-wrap')) showMenu(false);
+  });
+  menu.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      showMenu(false);
+      scanBtn.focus();
+    }
+  });
+  btnRetake.addEventListener('click', () => source.click());
   $('scanClose').addEventListener('click', close);
   sheet.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') close();
@@ -44,9 +79,10 @@ export function initScanner({ onImport }) {
     e.preventDefault();
   });
 
-  file.addEventListener('change', async () => {
-    const f = file.files[0];
-    file.value = '';
+  const onPhoto = async (e) => {
+    const input = e.currentTarget;
+    const f = input.files[0];
+    input.value = '';
     if (!f) return;
     open();
     setBusy(true, 'Reading puzzle…');
@@ -61,7 +97,9 @@ export function initScanner({ onImport }) {
       close();
       toast("Couldn't open that image");
     }
-  });
+  };
+  camera.addEventListener('change', onPhoto);
+  gallery.addEventListener('change', onPhoto);
 
   function open() {
     sheet.hidden = false;
