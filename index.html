@@ -133,12 +133,103 @@
     background-color: orange
   }
 
-  #myModal {
-    left: 50%;
-    top: 50%;
-    position: absolute;
-    transform: translate(-50%, -50%);
-    display:none;
+  .panel-v2 {
+    max-width: 560px;
+    margin: 18px auto;
+    padding: 0 16px;
+  }
+
+  .panel-v2 *, #working * {
+    text-align: left;
+  }
+
+  .panel-v2 h4 {
+    text-align: center;
+    margin-bottom: 8px;
+  }
+
+  .puzzle-io {
+    margin: 6px auto;
+  }
+
+  .puzzle-io input[type=text] {
+    width: 280px;
+    max-width: 100%;
+    font-family: monospace;
+    font-size: 11px;
+  }
+
+  .strategy {
+    border-top: 1px solid #ddd;
+    padding: 8px 0;
+  }
+
+  .strategy h5 {
+    font-weight: bold;
+  }
+
+  .strategy .watch {
+    margin-left: 6px;
+  }
+
+  .strategy p, .strategy .plan {
+    font-size: 13px;
+    margin: 4px 0;
+  }
+
+  .strategy .plan {
+    color: #555;
+    padding-left: 22px;
+  }
+
+  #grade .verdict {
+    font-size: 16px;
+    text-align: center;
+    margin: 8px 0;
+  }
+
+  #grade table {
+    margin-top: 8px;
+  }
+
+  #grade .num {
+    text-align: right;
+  }
+
+  #grade tr.best {
+    background-color: #eaf7e1;
+  }
+
+  #working {
+    max-height: 320px;
+    overflow-y: auto;
+    list-style: none;
+    border: 1px solid #ddd;
+    padding: 6px;
+    font-size: 13px;
+  }
+
+  #working li {
+    padding: 2px 0;
+  }
+
+  #working li.pass {
+    color: #999;
+    border-top: 1px solid #eee;
+  }
+
+  #working li.heading, #working li.result {
+    font-weight: bold;
+    padding: 6px 0;
+  }
+
+  #working .tag {
+    display: inline-block;
+    padding: 0 5px;
+    border-radius: 3px;
+    color: #111;
+    font-size: 11px;
+    font-weight: bold;
   }
 
 
@@ -150,6 +241,7 @@
 		<input type="button" class="btn btn-danger" id="clear" value="Clear"/>
 		<input type="button" class="btn btn-danger" id="save" value="Save"/>
 		<input type="button" class="btn btn-danger" id="load" value="Load"/>
+		<input type="button" class="btn btn-danger" id="reset" value="Reset" title="Go back to before the last solve"/>
 
 		<div class="blue btn-group">
 			<label class="btn btn-primary visual" id="visualSlow">
@@ -162,6 +254,13 @@
 				Ultra
 			</label>
 		</div>
+	</div>
+
+	<div class="puzzle-io">
+		<select id="examples"></select>
+		<input type="text" id="puzzle-text" placeholder="81 digits, . or 0 for blanks"/>
+		<input type="button" class="btn btn-default btn-xs" id="import" value="Import"/>
+		<input type="button" class="btn btn-default btn-xs" id="export" value="Export"/>
 	</div>
 
 	<div class="puzzle">
@@ -202,32 +301,48 @@
 
   <div id="popover"></div>
 
+	<div class="panel-v2">
+		<h4>Approaches</h4>
+		<p>Each approach is a way a person might tackle a puzzle, written in words and translated
+		into the search buttons above. Watch one solve the puzzle, or grade the puzzle by running
+		them all.</p>
+		<p class="text-center"><input type="button" class="btn btn-primary" id="grade-btn" value="Grade puzzle"/></p>
+		<div id="grade"></div>
+		<div id="strategies"></div>
+	</div>
+
+	<div class="panel-v2">
+		<h4>Working <input type="button" class="btn btn-default btn-xs" id="clear-log" value="Clear"/></h4>
+		<ol id="working"></ol>
+	</div>
+
 	<div id="instructions">
 		<h4>Instructions</h4>
 		<p>Enter digits in the grid; you can use arrow keys on keyboard or click / touch.</p>
 		<p>Hover over (or touch on mobile) any cell to view the digits it could be. This updates automatically whenever a cell changes.</p>
 		<p>Use 'Save' to store the current puzzle state so you can return to the beginning if you want.</p>
-		<p>Use a combination of different search methods to solve the puzzle. You should <strong>wait till one search has finished before doing the next</strong>. Although it will let you trigger multiple searches at once and it looks cool, it will probably fail to solve..</p>
+		<p>Use a combination of different search methods to solve the puzzle. While one search is running the others are disabled; click it again to stop it.</p>
 		<p>
 			<ul>
-				<li><strong>Not Search</strong> - For every blank that has changed state, remove all the digits in that cells row, column and box from it's 'maybes' list. If only one remains, enter it.</li>
+				<li><strong>Not Search</strong> - For every blank, read across its row, column and box and remove every digit found from its 'maybes' list. If only one remains, enter it.</li>
         <li><strong>Not Check</strong> - Additional method that checks all the affected cells whenever a value is entered to see if they can now be only one thing. Basically makes 'Not Search' redundant.</li>
-				<li><strong>Box Search</strong> - For each box, create list of cells where each digit could go. If only one place, enter it. If only 2 places, and they are on the same row or column, update the rest of the group's maybes lists</li>
+				<li><strong>Box Search</strong> - For each box, create list of cells where each digit could go. If only one place, enter it.</li>
         <li><strong>Line Check</strong> - Additional check after box search, if digit can only be in 2 or 3 cells on the same row or column, then it can't be anywhere else on that line</li>
 				<li><strong>Column Search</strong> - For each column, create list of cells where each digit could go. If only one place, enter it.</li>
 				<li><strong>Row Search</strong> - For each row, create list of cells where each digit could go. If only one place, enter it.</li>
-				<li><strong>Solve</strong> - Not, Box, Column and Row search until no blanks remain or maximum iterations reached. Now runs with visuals on thanks to async promises.</li>
-        <li><strong>Tree Search</strong> - Triggered if 'Solve' fails, finds a cell that can only be one of 2 digits and attempts to solve each scenario</li>
+				<li><strong>Solve</strong> - Not, Box, Column and Row search, each repeated while it finds anything, until solved or stuck. This is the 'All-rounder' approach below.</li>
+        <li><strong>Tree Search</strong> - Used by 'Solve' when it gets stuck: picks the blank with the fewest options, tries one and carries on. If that leads to a contradiction it backs up and rules that digit out.</li>
 			</ul>
 		</p>
-		<p>Use the arrow keys to scroll backwards and forward digit by digit</p>
+		<p>Use the arrow buttons to step backwards and forward digit by digit, or Reset to go back to before the last solve.</p>
+		<h4>Grading</h4>
+		<p>Every approach counts its <strong>looks</strong>: reading a square, checking whether a digit fits, or rubbing out a pencil mark. When an approach gets stuck it borrows the other searches, easiest first, and goes back to its own way as soon as one finds something. Only when none of them can make progress does it guess (Tree Search), and all the work spent on wrong guesses counts too.</p>
+		<p>Guessing is hard for people, so a puzzle that can't be solved without it is rated at least Tough whatever its effort.</p>
+		<p>The puzzle's difficulty is the geometric mean of the looks each approach needed. Some puzzles suit one approach far better than another; the approach that needed fewest looks is the one the puzzle favours.</p>
+		<p>On Slow or Fast the Working panel explains each digit as it is found. On Ultra only the result is shown. You can switch speed part way through.</p>
 	</div>
 
 	<script type="text/javascript" src="main.js"></script>
-
-<script type="text/javascript">
-
-</script>
 
 </body>
 </html>
