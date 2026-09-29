@@ -1,17 +1,30 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-GB">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Sudoku Cracker</title>
-  <meta name="description" content="Sudoku solver and difficulty grader with step-by-step algorithm visualisation. Scan a puzzle with your camera to import it.">
-  <meta name="theme-color" content="#1f2a44">
+  <title>Sudoku Cracker — free sudoku solver and difficulty grader</title>
+  <meta name="description" content="Free sudoku solver and difficulty grader. Scan a puzzle from a photo, watch it solved step by step with human-style techniques, and find out how hard it really is.">
+  <!-- The netlify.app address serves this too; point search engines here. -->
+  <link rel="canonical" href="https://sudoku.bristoljon.uk/">
+  <meta property="og:site_name" content="bristoljon.uk">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Sudoku Cracker — free sudoku solver and difficulty grader">
+  <meta property="og:description" content="Free sudoku solver and difficulty grader. Scan a puzzle from a photo, watch it solved step by step with human-style techniques, and find out how hard it really is.">
+  <meta property="og:url" content="https://sudoku.bristoljon.uk/">
+  <meta property="og:image" content="https://sudoku.bristoljon.uk/icons/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:creator" content="@brisjon">
+  <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebApplication", "name": "Sudoku Cracker", "alternateName": ["Sudoku Solver", "Sudoku Difficulty Grader"], "url": "https://sudoku.bristoljon.uk/", "description": "Free sudoku solver and difficulty grader. Scan a puzzle from a photo, watch it solved step by step with human-style techniques, and find out how hard it really is.", "image": "https://sudoku.bristoljon.uk/icons/og-image.png", "applicationCategory": "GameApplication", "operatingSystem": "Any", "browserRequirements": "Requires JavaScript", "isAccessibleForFree": true, "offers": {"@type": "Offer", "price": "0", "priceCurrency": "GBP"}, "featureList": ["Scan a sudoku from a photo or screenshot", "Step-by-step solving with human-style techniques", "Difficulty rating from Gentle to Diabolical", "Works offline and installs as an app"], "author": {"@type": "Person", "name": "Jon Wyatt", "url": "https://bristoljon.uk/"}, "subjectOf": {"@type": "WebPage", "url": "https://bristoljon.uk/project/sudoku/"}}</script>
+  <meta name="theme-color" content="#eef1f6">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Sudoku">
 
   <style>
@@ -40,14 +53,8 @@
       -webkit-tap-highlight-color: transparent;
     }
     body.noscroll { overflow: hidden; }
-    main { max-width: 480px; margin: 0 auto; padding: 0 12px 24px; }
-
-    header.top {
-      display: flex; align-items: center; justify-content: space-between; gap: 8px;
-      background: var(--brand); color: #fff;
-      padding: 10px 14px; margin: 0 -12px 10px; min-height: 60px;
-    }
-    header.top h1 { font-size: 18px; font-weight: 700; letter-spacing: .2px; }
+    main { max-width: 480px; margin: 0 auto; padding: 12px 12px 24px; }
+    .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
     button {
       font: inherit; font-weight: 600; border: 0; border-radius: 8px;
@@ -58,7 +65,7 @@
     button:disabled { opacity: .45; cursor: default; }
     button:focus-visible { outline: 3px solid #7aa7ff; outline-offset: 1px; }
     .primary { background: var(--accent); color: #fff; }
-    .icon-btn { background: transparent; color: #fff; min-width: 40px; padding: 8px; display: inline-flex; align-items: center; justify-content: center; }
+    .icon-btn { flex: 0 0 auto; min-width: 44px; padding: 8px; display: inline-flex; align-items: center; justify-content: center; }
     .icon-btn svg { width: 22px; height: 22px; }
     .icon-btn[hidden] { display: none; }
     .scan-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; background: var(--brand); color: #fff; }
@@ -69,7 +76,7 @@
     .toolbar.sources .seg button { padding: 6px 8px; }
     .toolbar.sources .scan-btn { padding: 9px 10px; gap: 6px; }
     .toolbar.sources select { padding: 0 4px 0 8px; }
-    .toolbar.actions > button { flex: 1; }
+    .toolbar.actions > button:not(.icon-btn) { flex: 1; }
     .menu {
       position: absolute; left: 0; top: calc(100% + 6px); z-index: 30; min-width: 170px;
       background: var(--card); border-radius: var(--radius); padding: 4px;
@@ -245,12 +252,8 @@
 </head>
 <body>
   <main>
-    <header class="top">
-      <h1>Sudoku Cracker</h1>
-      <button id="installBtn" class="icon-btn" type="button" aria-label="Install app" title="Install app" hidden>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
-      </button>
-    </header>
+    <h1 class="visually-hidden">Sudoku Cracker</h1>
+    <noscript><p>Sudoku Cracker is a free sudoku solver and difficulty grader. Scan a puzzle from a photo or type it in, watch it solved step by step with human-style techniques, and see how hard it is, from Gentle to Diabolical. It needs JavaScript to run. <a href="https://bristoljon.uk/project/sudoku/">Read about the sudoku grader</a>.</p></noscript>
 
     <div class="toolbar sources">
       <div class="scan-wrap">
@@ -275,6 +278,9 @@
       <button id="reset" type="button" title="Back to the start of this puzzle">Reset</button>
       <button id="clear" type="button">Clear</button>
       <button id="save" type="button">Save</button>
+      <button id="installBtn" class="icon-btn" type="button" aria-label="Install app" title="Install app" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+      </button>
     </div>
 
     <div class="puzzle">
@@ -393,6 +399,7 @@
       <p>Every approach counts its <strong>looks</strong>: reading a square, checking whether a digit fits, or rubbing out a pencil mark. When an approach gets stuck it borrows the other searches, easiest first, and goes back to its own way as soon as one finds something. Only when none of them can make progress does it guess (Tree Search), and all the work spent on wrong guesses counts too.</p>
       <p>Guessing is hard for people, so a puzzle that can't be solved without it is rated at least Tough whatever its effort.</p>
       <p>The puzzle's difficulty is the geometric mean of the looks each approach needed. Some puzzles suit one approach far better than another; the approach that needed fewest looks is the one the puzzle favours. 'Stuck' counts how often an approach ran dry and had to borrow another search.</p>
+      <p>More about how it was made, and its history since 2016, on the <a href="https://bristoljon.uk/project/sudoku/">project page</a>.</p>
     </details>
   </main>
 

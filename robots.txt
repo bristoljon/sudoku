@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://sudoku.bristoljon.uk/sitemap.xml
